@@ -30,6 +30,7 @@ pub enum Theme {
 }
 
 pub enum ColorScheme {
+	latimes        // LA Times data visualization style (default)
 	default_scheme
 	pastel
 	dark_scheme

@@ -21,7 +21,7 @@ fn main() {
 	mut line_chart := cuiqcharts.line(
 		title:  'Sales vs Costs'
 		theme:  .light
-		colors: .default_scheme
+		colors: .latimes
 		width:  600
 		height: 350
 	)

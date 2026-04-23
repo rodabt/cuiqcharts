@@ -8,6 +8,8 @@ const vl_schema = 'https://vega.github.io/schema/vega-lite/v5.json'
 
 fn color_palette(cs ColorScheme) []string {
 	return match cs {
+		// LA Times data visualization style — category range from latimes.json
+		.latimes        { ['#ec8431','#829eb1','#c89d29','#3580b1','#adc839','#ab7fb4'] }
 		// Paul Tol "Bright" — perceptually distinct, print-safe, widely used in scientific publishing
 		.default_scheme { ['#4477AA','#EE6677','#228833','#CCBB44','#66CCEE','#AA3377','#BBBBBB'] }
 		// Paul Tol "Muted" — lower saturation, better for filled areas and dense charts
@@ -58,7 +60,7 @@ fn grid_color(t Theme) string {
 	return match t {
 		.dark  { '#404040' }
 		.sepia { '#d4c5b0' }
-		.light { '#e0e0e0' }
+		.light { '#dedede' }
 	}
 }
 
@@ -83,19 +85,28 @@ fn f64_to_str(v f64) string {
 	return '${v}'
 }
 
+// vl_title returns the Vega-Lite "title" JSON value.
+// When a subtitle is present it uses the object form {"text":…,"subtitle":…}.
+fn vl_title(cfg ChartConfig) string {
+	if cfg.subtitle.len == 0 {
+		return json_str(cfg.title)
+	}
+	return '{"text":${json_str(cfg.title)},"subtitle":${json_str(cfg.subtitle)}}'
+}
+
 // ─── Theme / config block ──────────────────────────────────────────────────────
 
 fn vl_config(c ChartConfig) string {
+	if c.colors == .latimes {
+		return vl_config_latimes()
+	}
 	tc := json_str(text_color(c.theme))
 	gc := json_str(grid_color(c.theme))
 	bg := json_str(bg_color(c.theme))
-	// Tufte: maximize data-ink ratio — no domain lines, no ticks, no x-gridlines.
-	// Cleveland: horizontal reference lines only (y-grid), light opacity.
-	// Few: left-anchored title, normal weight, bottom/top legend direction horizontal.
 	return '"background":${bg},"config":{'
-		+ '"axis":{"labelColor":${tc},"titleColor":${tc},"labelAngle":0,"labelFontSize":11,"titleFontSize":11,"titleFontWeight":"normal","titlePadding":8},'
-		+ '"axisX":{"grid":false,"domain":false,"ticks":false},'
-		+ '"axisY":{"gridColor":${gc},"gridOpacity":0.35,"domain":false,"ticks":false,"tickCount":5},'
+		+ '"axis":{"labelColor":${tc},"titleColor":${tc},"labelAngle":0,"labelFontSize":11,"titleFontSize":11,"titleFontWeight":"normal","titlePadding":8,"grid":true,"gridColor":${gc},"gridOpacity":0.35},'
+		+ '"axisX":{"domain":false,"ticks":false},'
+		+ '"axisY":{"domain":false,"ticks":false,"tickCount":5},'
 		+ '"legend":{"labelColor":${tc},"titleColor":${tc},"labelFontSize":11,"titleFontSize":11,"titleFontWeight":"normal","padding":6,"strokeColor":"transparent"},'
 		+ '"title":{"color":${tc},"fontSize":14,"fontWeight":"normal","anchor":"start","offset":12},'
 		+ '"bar":{"cornerRadiusTopLeft":2,"cornerRadiusTopRight":2},'
@@ -103,6 +114,26 @@ fn vl_config(c ChartConfig) string {
 		+ '"point":{"size":35,"filled":true},'
 		+ '"arc":{"stroke":"white","strokeWidth":1},'
 		+ '"view":{"stroke":"transparent","padding":{"left":5,"right":5,"top":5,"bottom":5}}}'
+}
+
+fn vl_config_latimes() string {
+	// Faithfully mirrors configs/latimes.json.
+	// Key visual traits: horizontal Y-axis title (titleAngle:0, titleX/Y positioning),
+	// fixed 45px Y-label extent, Benton Gothic fonts, square legend symbols.
+	// No grid:false/domain:false overrides — let Vega-Lite defaults apply per scale type.
+	return '"background":"#ffffff","config":{'
+		+ '"axis":{"labelFont":"Benton Gothic, sans-serif","labelFontSize":11.5,"titleFont":"Benton Gothic Bold, sans-serif","titleFontSize":13,"titleFontWeight":"normal","grid":true,"gridColor":"#dedede","gridOpacity":1},'
+		+ '"axisX":{"labelAngle":0,"labelPadding":4,"tickSize":3},'
+		+ '"axisY":{"labelBaseline":"middle","maxExtent":45,"minExtent":45,"tickSize":2,"titleAlign":"left","titleAngle":0,"titleX":-45,"titleY":-11},'
+		+ '"legend":{"labelFont":"Benton Gothic, sans-serif","labelFontSize":11.5,"titleFont":"Benton Gothic Bold, sans-serif","titleFontSize":13,"titleFontWeight":"normal","symbolType":"square"},'
+		+ '"title":{"color":"#000000","font":"Benton Gothic Bold, sans-serif","fontSize":22,"fontWeight":"normal","anchor":"start"},'
+		+ '"arc":{"fill":"#82c6df"},'
+		+ '"area":{"fill":"#82c6df"},'
+		+ '"line":{"stroke":"#82c6df","strokeWidth":2},'
+		+ '"rect":{"fill":"#82c6df"},'
+		+ '"symbol":{"fill":"#82c6df","size":30},'
+		+ '"range":{"category":["#ec8431","#829eb1","#c89d29","#3580b1","#adc839","#ab7fb4"],"heatmap":["#fbf2c7","#f9e39c","#f8d36e","#f4bb6a","#e68a4f","#d15a40","#ab4232"]},'
+		+ '"view":{"stroke":"transparent"}}'
 }
 
 // vl_color_scale returns the Vega-Lite color scale JSON fragment for a color scheme.
@@ -254,7 +285,7 @@ fn render_bar(c Chart) string {
 	y_title := if c.config.y_axis.name != '' { c.config.y_axis.name } else { '' }
 	offset := if multi { ',"xOffset":{"field":"s","type":"nominal"}' } else { '' }
 	enc := '{"x":{"field":"x","type":"nominal","title":${json_str(x_title)},"axis":{"labelAngle":0}},"y":{"field":"y","type":"quantitative","title":${json_str(y_title)}}${offset},${color_enc}}'
-	header := '"\$schema":${json_str(vl_schema)},"title":${json_str(c.config.title)},"width":${c.config.width},"height":${c.config.height},"data":{"values":${data}}'
+	header := '"\$schema":${json_str(vl_schema)},"title":${vl_title(c.config)},"width":${c.config.width},"height":${c.config.height},"data":{"values":${data}}'
 	base := '{"mark":{"type":"bar","tooltip":true},"encoding":${enc}}'
 	mut layers := [base]
 	if c.config.labels.show {
@@ -287,7 +318,7 @@ fn render_hbar(c Chart) string {
 	x_title := if c.config.x_axis.name != '' { c.config.x_axis.name } else { '' }
 	y_title := if c.config.y_axis.name != '' { c.config.y_axis.name } else { '' }
 	enc := '{"y":{"field":"x","type":"nominal","title":${json_str(y_title)},"sort":"-x"},"x":{"field":"y","type":"quantitative","title":${json_str(x_title)}},${color_enc}}'
-	header := '"\$schema":${json_str(vl_schema)},"title":${json_str(c.config.title)},"width":${c.config.width},"height":${c.config.height},"data":{"values":${data}}'
+	header := '"\$schema":${json_str(vl_schema)},"title":${vl_title(c.config)},"width":${c.config.width},"height":${c.config.height},"data":{"values":${data}}'
 	if !c.config.labels.show {
 		return '{${header},"mark":{"type":"bar","tooltip":true},"encoding":${enc},${vl_config(c.config)}}'
 	}
@@ -316,7 +347,7 @@ fn render_line(c Chart) string {
 	x_title := if c.config.x_axis.name != '' { c.config.x_axis.name } else { '' }
 	y_title := if c.config.y_axis.name != '' { c.config.y_axis.name } else { '' }
 	enc := '{"x":{"field":"x","type":"nominal","title":${json_str(x_title)}},"y":{"field":"y","type":"quantitative","title":${json_str(y_title)}},${color_enc}}'
-	header := '"\$schema":${json_str(vl_schema)},"title":${json_str(c.config.title)},"width":${c.config.width},"height":${c.config.height},"data":{"values":${data}}'
+	header := '"\$schema":${json_str(vl_schema)},"title":${vl_title(c.config)},"width":${c.config.width},"height":${c.config.height},"data":{"values":${data}}'
 	base := '{"mark":{"type":"line","point":true,"tooltip":true},"encoding":${enc}}'
 	mut layers := [base]
 	if c.config.labels.show {
@@ -346,7 +377,7 @@ fn render_area(c Chart) string {
 	x_title := if c.config.x_axis.name != '' { c.config.x_axis.name } else { '' }
 	y_title := if c.config.y_axis.name != '' { c.config.y_axis.name } else { '' }
 	enc := '{"x":{"field":"x","type":"nominal","title":${json_str(x_title)}},"y":{"field":"y","type":"quantitative","title":${json_str(y_title)}},${color_enc}}'
-	header := '"\$schema":${json_str(vl_schema)},"title":${json_str(c.config.title)},"width":${c.config.width},"height":${c.config.height},"data":{"values":${data}}'
+	header := '"\$schema":${json_str(vl_schema)},"title":${vl_title(c.config)},"width":${c.config.width},"height":${c.config.height},"data":{"values":${data}}'
 	base := '{"mark":{"type":"area","line":true,"point":false,"tooltip":true,"opacity":0.4},"encoding":${enc}}'
 	mut layers := [base]
 	if c.config.labels.show {
@@ -376,7 +407,7 @@ fn render_scatter(c Chart) string {
 	x_title := if c.config.x_axis.name != '' { c.config.x_axis.name } else { 'x' }
 	y_title := if c.config.y_axis.name != '' { c.config.y_axis.name } else { 'y' }
 	enc := '{"x":{"field":"x","type":"quantitative","title":${json_str(x_title)}},"y":{"field":"y","type":"quantitative","title":${json_str(y_title)}},${color_enc}}'
-	header := '"\$schema":${json_str(vl_schema)},"title":${json_str(c.config.title)},"width":${c.config.width},"height":${c.config.height},"data":{"values":${data}}'
+	header := '"\$schema":${json_str(vl_schema)},"title":${vl_title(c.config)},"width":${c.config.width},"height":${c.config.height},"data":{"values":${data}}'
 	base := '{"mark":{"type":"point","filled":true,"size":55,"opacity":0.75,"tooltip":true},"encoding":${enc}}'
 	mut layers := [base]
 	if c.config.labels.show {
@@ -397,7 +428,7 @@ fn render_pie(c Chart) string {
 	if c.series.len == 0 { return '{}' }
 	data := series_to_pie_data(c.series)
 	enc := '{"theta":{"field":"y","type":"quantitative"},"color":{"field":"x","type":"nominal","legend":${vl_legend(c.config.legend)},"scale":{"range":${vl_color_range(c.config.colors)}}}}'
-	header := '"\$schema":${json_str(vl_schema)},"title":${json_str(c.config.title)},"width":${c.config.width},"height":${c.config.height},"data":{"values":${data}}'
+	header := '"\$schema":${json_str(vl_schema)},"title":${vl_title(c.config)},"width":${c.config.width},"height":${c.config.height},"data":{"values":${data}}'
 	if !c.config.labels.show {
 		return '{${header},"mark":{"type":"arc","tooltip":true},"encoding":${enc},${vl_config(c.config)}}'
 	}
@@ -420,7 +451,7 @@ fn render_histogram(c Chart) string {
 	col := primary_color(c.config.colors)
 	step := '"bin":{"maxbins":${c.config.bins}}'
 	enc := '{"x":{"field":"v","type":"quantitative",${step},"title":"Value"},"y":{"aggregate":"count","type":"quantitative","title":"Count"}}'
-	header := '"\$schema":${json_str(vl_schema)},"title":${json_str(c.config.title)},"width":${c.config.width},"height":${c.config.height},"data":{"values":${data}}'
+	header := '"\$schema":${json_str(vl_schema)},"title":${vl_title(c.config)},"width":${c.config.width},"height":${c.config.height},"data":{"values":${data}}'
 	if !c.config.labels.show {
 		return '{${header},"mark":{"type":"bar","tooltip":true,"color":${json_str(col)}},"encoding":${enc},${vl_config(c.config)}}'
 	}
@@ -436,13 +467,16 @@ fn render_histogram(c Chart) string {
 fn render_heatmap(c Chart) string {
 	if c.series.len == 0 { return '{}' }
 	data := series_to_heatmap_data(c.series)
-	// Sequential gradient: near-white → primary palette color (Cleveland: single-hue ramp for quantitative cells)
-	hi := color_palette(c.config.colors)[0]
-	lo := '#f0f0f0'
+	// Sequential gradient: latimes uses its warm ramp; others use near-white → primary palette color.
+	hi, lo := if c.config.colors == .latimes {
+		'#ab4232', '#fbf2c7'
+	} else {
+		color_palette(c.config.colors)[0], '#f0f0f0'
+	}
 	x_title := if c.config.x_axis.name != '' { c.config.x_axis.name } else { '' }
 	y_title := if c.config.y_axis.name != '' { c.config.y_axis.name } else { '' }
 	enc := '{"x":{"field":"x","type":"nominal","title":${json_str(x_title)}},"y":{"field":"y","type":"nominal","title":${json_str(y_title)}},"color":{"field":"v","type":"quantitative","scale":{"range":[${json_str(lo)},${json_str(hi)}]},"legend":{"title":"Value"}}}'
-	header := '"\$schema":${json_str(vl_schema)},"title":${json_str(c.config.title)},"width":${c.config.width},"height":${c.config.height},"data":{"values":${data}}'
+	header := '"\$schema":${json_str(vl_schema)},"title":${vl_title(c.config)},"width":${c.config.width},"height":${c.config.height},"data":{"values":${data}}'
 	if !c.config.labels.show {
 		return '{${header},"mark":{"type":"rect","tooltip":true},"encoding":${enc},${vl_config(c.config)}}'
 	}
@@ -479,7 +513,7 @@ fn render_bar_errorbar(c Chart) string {
 			all_layers << '{"mark":{"type":"text","dy":-12,"align":"center","baseline":"bottom","fontSize":${lsize}},"transform":[{${filter}}],"encoding":{"x":{"field":"x","type":"nominal"},"y":{"field":"y","type":"quantitative"},"text":{"field":"y","type":"quantitative","format":","},"color":{"value":${json_str(lcolor)}}}}'
 		}
 	}
-	return '{"\$schema":${json_str(vl_schema)},"title":${json_str(c.config.title)},"width":${c.config.width},"height":${c.config.height},"data":{"values":${data}},"layer":[${all_layers.join(',')}],${vl_config(c.config)}}'
+	return '{"\$schema":${json_str(vl_schema)},"title":${vl_title(c.config)},"width":${c.config.width},"height":${c.config.height},"data":{"values":${data}},"layer":[${all_layers.join(',')}],${vl_config(c.config)}}'
 }
 
 fn render_rolling_mean(c Chart) string {
@@ -502,7 +536,7 @@ fn render_rolling_mean(c Chart) string {
 		text_enc := '{"x":{"field":"x","type":"nominal"},"y":{"field":"rolling_mean","type":"quantitative"},"text":{"field":"rolling_mean","type":"quantitative","format":".1f"},"color":{"value":${json_str(lcolor)}}}'
 		rm_layers << '{${transform},"mark":${text_mark},"encoding":${text_enc}}'
 	}
-	return '{"\$schema":${json_str(vl_schema)},"title":${json_str(c.config.title)},"width":${c.config.width},"height":${c.config.height},"data":{"values":${data}},"layer":[${rm_layers.join(',')}],${vl_config(c.config)}}'
+	return '{"\$schema":${json_str(vl_schema)},"title":${vl_title(c.config)},"width":${c.config.width},"height":${c.config.height},"data":{"values":${data}},"layer":[${rm_layers.join(',')}],${vl_config(c.config)}}'
 }
 
 fn render_line_ci(c Chart) string {
@@ -530,7 +564,7 @@ fn render_line_ci(c Chart) string {
 			layers << '{"mark":{"type":"text","dy":-10,"align":"center","baseline":"bottom","fontSize":${lsize}},"transform":[{${filter}}],"encoding":{"x":{"field":"x","type":"nominal"},"y":{"field":"y","type":"quantitative"},"text":{"field":"y","type":"quantitative","format":".1f"},"color":{"value":${json_str(lcolor)}}}}'
 		}
 	}
-	return '{"\$schema":${json_str(vl_schema)},"title":${json_str(c.config.title)},"width":${c.config.width},"height":${c.config.height},"data":{"values":${data}},"layer":[${layers.join(',')}],${vl_config(c.config)}}'
+	return '{"\$schema":${json_str(vl_schema)},"title":${vl_title(c.config)},"width":${c.config.width},"height":${c.config.height},"data":{"values":${data}},"layer":[${layers.join(',')}],${vl_config(c.config)}}'
 }
 
 fn render_waterfall(c Chart) string {
@@ -559,7 +593,7 @@ fn render_waterfall(c Chart) string {
 	// Text layer: show amounts on bars (always visible; LabelConfig tunes style)
 	wl_size := if c.config.labels.show { label_size(c.config.labels) } else { 11 }
 	text_layer := '{"mark":{"type":"text","dy":0,"align":"center","baseline":"middle","fontSize":${wl_size}},"encoding":{"x":{"field":"x","type":"ordinal","sort":null},"y":{"field":"text_mid","type":"quantitative"},"text":{"field":"display_val","type":"quantitative","format":".0f"},"color":{"value":"#ffffff"}}}'
-	return '{"\$schema":${json_str(vl_schema)},"title":${json_str(c.config.title)},"width":${c.config.width},"height":${c.config.height},"data":{"values":${data}},"transform":${transforms},"layer":[${bar_layer},${rule_layer},${text_layer}],${vl_config(c.config)}}'
+	return '{"\$schema":${json_str(vl_schema)},"title":${vl_title(c.config)},"width":${c.config.width},"height":${c.config.height},"data":{"values":${data}},"transform":${transforms},"layer":[${bar_layer},${rule_layer},${text_layer}],${vl_config(c.config)}}'
 }
 
 fn render_funnel(c Chart) string {
@@ -581,7 +615,7 @@ fn render_funnel(c Chart) string {
 	color_enc := '"color":{"field":"s","type":"nominal","legend":${vl_legend(c.config.legend)},"scale":{"range":${vl_color_range(c.config.colors)}}}'
 	order_enc := '"order":{"field":"o","type":"quantitative"}'
 	bar_enc := '{"x":{"field":"x","type":"ordinal","title":${json_str(x_title)},"sort":null,"axis":{"labelAngle":0}},"y":{"field":"y","type":"quantitative","title":${json_str(y_title)},"stack":"zero"},${color_enc},${opacity_enc},${order_enc}}'
-	header := '"\$schema":${json_str(vl_schema)},"title":${json_str(c.config.title)},"width":${c.config.width},"height":${c.config.height},"data":{"values":${data}}'
+	header := '"\$schema":${json_str(vl_schema)},"title":${vl_title(c.config)},"width":${c.config.width},"height":${c.config.height},"data":{"values":${data}}'
 	if !c.config.labels.show {
 		return '{${header},"mark":{"type":"bar","tooltip":true},"encoding":${bar_enc},${vl_config(c.config)}}'
 	}
@@ -629,7 +663,7 @@ fn render_box_plot(c Chart) string {
 		col := primary_color(c.config.colors)
 		'"color":{"value":${json_str(col)}}'
 	}
-	return '{"\$schema":${json_str(vl_schema)},"title":${json_str(c.config.title)},"width":${c.config.width},"height":${c.config.height},"data":{"values":${data}},"mark":{"type":"boxplot","extent":"min-max","tooltip":true},"encoding":{"x":{"field":"x","type":"nominal","title":${json_str(x_title)}},"y":{"field":"y","type":"quantitative","title":${json_str(y_title)}},${color_enc}},${vl_config(c.config)}}'
+	return '{"\$schema":${json_str(vl_schema)},"title":${vl_title(c.config)},"width":${c.config.width},"height":${c.config.height},"data":{"values":${data}},"mark":{"type":"boxplot","extent":"min-max","tooltip":true},"encoding":{"x":{"field":"x","type":"nominal","title":${json_str(x_title)}},"y":{"field":"y","type":"quantitative","title":${json_str(y_title)}},${color_enc}},${vl_config(c.config)}}'
 }
 
 // ─── Overlay helpers ───────────────────────────────────────────────────────────

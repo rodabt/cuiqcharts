@@ -39,7 +39,7 @@ pub:
 	title    string
 	subtitle string
 	theme    Theme       = .light
-	colors   ColorScheme = .default_scheme
+	colors   ColorScheme = .latimes
 	width    int         = 800
 	height   int         = 400
 	legend   LegendPos   = .top

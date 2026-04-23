@@ -6,7 +6,7 @@ fn main() {
 	// ── Bar chart ──────────────────────────────────────────────────────────────
 	mut bar_chart := cuiqcharts.bar(
 		title:  'Monthly Revenue'
-		colors: .default_scheme
+		colors: .latimes
 		width:  900
 		height: 450
 		x_axis: cuiqcharts.AxisConfig{ name: 'Month' }
@@ -20,7 +20,7 @@ fn main() {
 	// ── Multi-series line chart ────────────────────────────────────────────────
 	mut line_chart := cuiqcharts.line(
 		title:  'Sales vs Costs'
-		colors: .default_scheme
+		colors: .latimes
 		width:  900
 		height: 450
 		x_axis: cuiqcharts.AxisConfig{ name: 'Quarter' }
@@ -36,7 +36,7 @@ fn main() {
 	// ── Market share — hbar preferred over pie (Cleveland: length > angle perception) ──
 	mut share_chart := cuiqcharts.hbar(
 		title:  'Market Share by Product'
-		colors: .default_scheme
+		colors: .latimes
 		width:  600
 		height: 300
 		x_axis: cuiqcharts.AxisConfig{ name: 'Share (%)' }
@@ -68,7 +68,7 @@ fn main() {
 	// ── Horizontal bar ─────────────────────────────────────────────────────────
 	mut hbar_chart := cuiqcharts.hbar(
 		title:  'Cost by Department'
-		colors: .default_scheme
+		colors: .latimes
 		width:  700
 		height: 400
 		x_axis: cuiqcharts.AxisConfig{ name: 'Budget (USD thousands)' }
@@ -83,7 +83,7 @@ fn main() {
 	// ── Area chart ─────────────────────────────────────────────────────────────
 	mut area_chart := cuiqcharts.area(
 		title:  'Cumulative User Growth'
-		colors: .default_scheme
+		colors: .latimes
 		width:  900
 		height: 400
 		x_axis: cuiqcharts.AxisConfig{ name: 'Month' }
@@ -97,7 +97,7 @@ fn main() {
 	// ── Histogram ──────────────────────────────────────────────────────────────
 	mut hist_chart := cuiqcharts.histogram(
 		title:  'Score Distribution'
-		colors: .default_scheme
+		colors: .latimes
 		width:  800
 		height: 450
 		x_axis: cuiqcharts.AxisConfig{ name: 'Score' }
@@ -113,7 +113,7 @@ fn main() {
 	// ── Heatmap — sequential palette (light → dark) for quantitative cells ────
 	mut heat_chart := cuiqcharts.heatmap(
 		title:  'Activity Heatmap'
-		colors: .default_scheme  // renders as near-white → Paul Tol blue gradient
+		colors: .latimes
 		width:  700
 		height: 400
 		x_axis: cuiqcharts.AxisConfig{ name: 'Time' }
@@ -169,7 +169,7 @@ fn main() {
 	// ── Line chart with confidence interval band ───────────────────────────────
 	mut ci_chart := cuiqcharts.line_ci(
 		title:  'Fuel Efficiency Over Time (with Confidence Band)'
-		colors: .default_scheme
+		colors: .latimes
 		width:  800
 		height: 400
 		x_axis: cuiqcharts.AxisConfig{ name: 'Year' }
@@ -190,7 +190,7 @@ fn main() {
 	// Begin carries the opening balance; End amount=0 displays the final cumulative total.
 	mut wfall_chart := cuiqcharts.waterfall(
 		title:  'Annual Profit & Loss'
-		colors: .default_scheme
+		colors: .latimes
 		width:  900
 		height: 450
 		x_axis: cuiqcharts.AxisConfig{ name: 'Period' }
