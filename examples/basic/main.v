@@ -3,255 +3,315 @@ module main
 import cuiqcharts
 
 fn main() {
-	// ── Bar chart ──────────────────────────────────────────────────────────────
+	// ── Bar — monthly revenue with target ref line and formatted axis ──────────
 	mut bar_chart := cuiqcharts.bar(
-		title:  'Monthly Revenue'
-		colors: .latimes
-		width:  900
-		height: 450
-		x_axis: cuiqcharts.AxisConfig{ name: 'Month' }
-		y_axis: cuiqcharts.AxisConfig{ name: 'Revenue (USD thousands)' }
+		title:    'Monthly Revenue — Q4 2025'
+		subtitle: 'Target: $200k/month'
+		colors:   .latimes
+		width:    900
+		height:   450
+		x_axis:   cuiqcharts.AxisConfig{ name: 'Month' }
+		y_axis:   cuiqcharts.AxisConfig{ name: 'Revenue (USD)', format: ',.0f' }
+		ref_lines: [
+			cuiqcharts.RefLine{ axis: 'y', value: 200000.0, label: 'Monthly target', color: '#e53935', dash: .dashed },
+		]
 	)
-	bar_chart.add_series(cuiqcharts.named_series('Revenue', ['Jan', 'Feb', 'Mar'],
-		[120.0, 145.0, 200.0]))
-	bar_chart.save('bar_chart.html') or { eprintln('Error saving bar_chart: ${err}') }
+	bar_chart.add_series(cuiqcharts.named_series('Revenue',
+		['Oct', 'Nov', 'Dec'], [182000.0, 215000.0, 248000.0]))
+	bar_chart.save('bar_chart.html') or { eprintln('Error: ${err}') }
 	println('Saved bar_chart.html')
 
-	// ── Multi-series line chart ────────────────────────────────────────────────
-	mut line_chart := cuiqcharts.line(
-		title:  'Sales vs Costs'
+	// ── Grouped bar — revenue vs budget by region ──────────────────────────────
+	mut grouped_bar := cuiqcharts.bar(
+		title:  'Revenue vs Budget by Region — Q4 2025'
 		colors: .latimes
 		width:  900
 		height: 450
-		x_axis: cuiqcharts.AxisConfig{ name: 'Quarter' }
+		x_axis: cuiqcharts.AxisConfig{ name: 'Region' }
 		y_axis: cuiqcharts.AxisConfig{ name: 'USD thousands' }
 	)
-	line_chart.add_series(cuiqcharts.named_series('Sales', ['Q1', 'Q2', 'Q3', 'Q4'],
-		[100.0, 120.0, 115.0, 140.0]))
-	line_chart.add_series(cuiqcharts.named_series('Costs', ['Q1', 'Q2', 'Q3', 'Q4'],
-		[80.0, 90.0, 85.0, 95.0]))
-	line_chart.save('line_chart.html') or { eprintln('Error saving line_chart: ${err}') }
-	println('Saved line_chart.html')
+	grouped_bar.add_series(cuiqcharts.named_series('Revenue',
+		['APAC', 'EMEA', 'LATAM', 'North America'],
+		[340.0, 410.0, 195.0, 620.0]))
+	grouped_bar.add_series(cuiqcharts.named_series('Budget',
+		['APAC', 'EMEA', 'LATAM', 'North America'],
+		[300.0, 380.0, 220.0, 580.0]))
+	grouped_bar.save('grouped_bar.html') or { eprintln('Error: ${err}') }
+	println('Saved grouped_bar.html')
 
-	// ── Market share — hbar preferred over pie (Cleveland: length > angle perception) ──
+	// ── Line — multi-series with direct end-of-line labels (no legend) ─────────
+	mut line_chart := cuiqcharts.line(
+		title:         'Revenue, COGS, and OpEx — FY 2025'
+		subtitle:      'Labels at series endpoints replace the legend'
+		colors:        .default_scheme
+		width:         900
+		height:        450
+		direct_labels: true
+		x_axis:        cuiqcharts.AxisConfig{ name: 'Quarter' }
+		y_axis:        cuiqcharts.AxisConfig{ name: 'USD thousands' }
+	)
+	line_chart.add_series(cuiqcharts.named_series('Revenue',
+		['Q1', 'Q2', 'Q3', 'Q4'], [100.0, 120.0, 115.0, 140.0]))
+	line_chart.add_series(cuiqcharts.named_series('COGS',
+		['Q1', 'Q2', 'Q3', 'Q4'], [60.0, 68.0, 65.0, 80.0]))
+	line_chart.add_series(cuiqcharts.named_series('OpEx',
+		['Q1', 'Q2', 'Q3', 'Q4'], [25.0, 28.0, 26.0, 30.0]))
+	line_chart.save('line_direct_labels.html') or { eprintln('Error: ${err}') }
+	println('Saved line_direct_labels.html')
+
+	// ── Line — single series with OLS trend line ───────────────────────────────
+	mut trend_chart := cuiqcharts.line(
+		title:      'Monthly Active Users — 2025'
+		subtitle:   'OLS trend line shows underlying growth trajectory'
+		colors:     .latimes
+		width:      900
+		height:     450
+		trend_line: true
+		x_axis:     cuiqcharts.AxisConfig{ name: 'Month' }
+		y_axis:     cuiqcharts.AxisConfig{ name: 'MAU (thousands)' }
+	)
+	trend_chart.add_series(cuiqcharts.named_series('MAU',
+		['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],
+		[42.0, 45.0, 43.0, 51.0, 58.0, 55.0, 62.0, 68.0, 65.0, 72.0, 78.0, 84.0]))
+	trend_chart.save('line_trend.html') or { eprintln('Error: ${err}') }
+	println('Saved line_trend.html')
+
+	// ── Horizontal bar — browser market share ──────────────────────────────────
 	mut share_chart := cuiqcharts.hbar(
-		title:  'Market Share by Product'
-		colors: .latimes
-		width:  600
-		height: 300
-		x_axis: cuiqcharts.AxisConfig{ name: 'Share (%)' }
-		y_axis: cuiqcharts.AxisConfig{ name: 'Product' }
+		title:    'Browser Market Share — Desktop, Q4 2025'
+		subtitle: 'Source: StatCounter Global Stats'
+		colors:   .latimes
+		width:    700
+		height:   380
+		x_axis:   cuiqcharts.AxisConfig{ name: 'Share (%)' }
+		y_axis:   cuiqcharts.AxisConfig{ name: 'Browser' }
 	)
 	share_chart.add_series(cuiqcharts.named_series('Share',
-		['Product A', 'Product B', 'Product C'], [45.0, 30.0, 25.0]))
-	share_chart.save('market_share.html') or { eprintln('Error saving market_share: ${err}') }
+		['Chrome', 'Safari', 'Edge', 'Firefox', 'Opera', 'Other'],
+		[65.1, 19.2, 4.8, 3.9, 2.6, 4.4]))
+	share_chart.save('market_share.html') or { eprintln('Error: ${err}') }
 	println('Saved market_share.html')
 
-	// ── Scatter chart ──────────────────────────────────────────────────────────
+	// ── Scatter — price elasticity with regression line, ref line, and zoom ────
+	//
+	// Demonstrates three features added in this release:
+	//   trend_line: true  → Vega-Lite OLS regression across all SKUs
+	//   zoom: true        → drag to zoom, scroll to pan, double-click to reset
+	//   ref_lines         → horizontal rule at the minimum viable volume
+	//   annotations       → label for the premium flagship outlier
+	//
+	// Each point is one SKU; x = retail price, y = units sold (thousands).
+	// The downward-sloping regression confirms classic price-demand elasticity.
 	mut scatter_chart := cuiqcharts.scatter(
-		title:  'Height vs Weight'
-		colors: .colorblind
-		width:  700
-		height: 500
-		x_axis: cuiqcharts.AxisConfig{ name: 'Height (cm)' }
-		y_axis: cuiqcharts.AxisConfig{ name: 'Weight (kg)' }
+		title:       'Price Elasticity of Demand — Consumer Electronics, Q4 2025'
+		subtitle:    'Each point = one SKU  ·  regression = OLS across all categories  ·  drag to zoom'
+		colors:      .colorblind
+		width:       940
+		height:      520
+		zoom:        true
+		trend_line:  true
+		trend_color: 'rgba(170,30,30,0.7)'
+		x_axis:      cuiqcharts.AxisConfig{ name: 'Retail Price (USD)' }
+		y_axis:      cuiqcharts.AxisConfig{ name: 'Units Sold (thousands)' }
+		ref_lines:   [
+			cuiqcharts.RefLine{ axis: 'y', value: 50.0, label: 'Volume floor', color: '#388e3c', dash: .dashed },
+		]
+		annotations: [
+			cuiqcharts.Annotation{ x: 1599.0, y: 14.0, text: 'Flagship laptop', color: '#555555', size: 11 },
+		]
 	)
-	scatter_chart.add_series(cuiqcharts.xy_series('Group A', [
-		[160.0, 55.0], [165.0, 60.0], [170.0, 65.0], [175.0, 70.0], [180.0, 80.0],
+	scatter_chart.add_series(cuiqcharts.xy_series('Smartphones', [
+		[199.0, 142.0], [249.0, 128.0], [299.0, 116.0], [349.0, 103.0],
+		[399.0,  89.0], [449.0,  75.0], [499.0,  63.0], [549.0,  57.0],
+		[599.0,  51.0], [699.0,  42.0], [799.0,  36.0], [899.0,  28.0],
 	]))
-	scatter_chart.add_series(cuiqcharts.xy_series('Group B', [
-		[155.0, 50.0], [162.0, 58.0], [168.0, 63.0], [172.0, 68.0],
+	scatter_chart.add_series(cuiqcharts.xy_series('Tablets', [
+		[299.0, 89.0], [349.0, 78.0], [399.0, 69.0], [449.0, 61.0],
+		[499.0, 54.0], [549.0, 48.0], [599.0, 44.0], [699.0, 37.0],
+		[799.0, 30.0], [899.0, 24.0],
 	]))
-	scatter_chart.save('scatter_chart.html') or { eprintln('Error saving scatter_chart: ${err}') }
-	println('Saved scatter_chart.html')
+	scatter_chart.add_series(cuiqcharts.xy_series('Laptops', [
+		[ 599.0, 62.0], [ 699.0, 55.0], [ 799.0, 48.0], [ 899.0, 41.0],
+		[ 999.0, 35.0], [1099.0, 30.0], [1199.0, 26.0], [1299.0, 22.0],
+		[1399.0, 18.0], [1499.0, 16.0], [1599.0, 14.0],
+	]))
+	scatter_chart.save('scatter_elasticity.html') or { eprintln('Error: ${err}') }
+	println('Saved scatter_elasticity.html')
 
-	// ── Horizontal bar ─────────────────────────────────────────────────────────
-	mut hbar_chart := cuiqcharts.hbar(
-		title:  'Cost by Department'
-		colors: .latimes
-		width:  700
-		height: 400
-		x_axis: cuiqcharts.AxisConfig{ name: 'Budget (USD thousands)' }
-		y_axis: cuiqcharts.AxisConfig{ name: 'Department' }
-	)
-	hbar_chart.add_series(cuiqcharts.named_series('Budget',
-		['Engineering', 'Sales', 'Marketing', 'Operations'],
-		[450.0, 280.0, 190.0, 320.0]))
-	hbar_chart.save('hbar_chart.html') or { eprintln('Error saving hbar_chart: ${err}') }
-	println('Saved hbar_chart.html')
-
-	// ── Area chart ─────────────────────────────────────────────────────────────
+	// ── Area — cumulative user growth with zoom ────────────────────────────────
 	mut area_chart := cuiqcharts.area(
-		title:  'Cumulative User Growth'
-		colors: .latimes
-		width:  900
-		height: 400
-		x_axis: cuiqcharts.AxisConfig{ name: 'Month' }
-		y_axis: cuiqcharts.AxisConfig{ name: 'Total Users' }
+		title:    'Cumulative Registered Users — 2025'
+		subtitle: 'Drag to zoom into any time window'
+		colors:   .latimes
+		width:    900
+		height:   420
+		zoom:     true
+		x_axis:   cuiqcharts.AxisConfig{ name: 'Month' }
+		y_axis:   cuiqcharts.AxisConfig{ name: 'Users', format: ',.0f' }
 	)
-	area_chart.add_series(cuiqcharts.named_series('Users', ['Jan', 'Feb', 'Mar', 'Apr', 'May'],
-		[1000.0, 1500.0, 2200.0, 3100.0, 4500.0]))
-	area_chart.save('area_chart.html') or { eprintln('Error saving area_chart: ${err}') }
-	println('Saved area_chart.html')
+	area_chart.add_series(cuiqcharts.named_series('Registered Users',
+		['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],
+		[12400.0, 18600.0, 27200.0, 38100.0, 51500.0, 67300.0,
+		 84200.0, 103500.0, 124800.0, 148100.0, 173600.0, 201400.0]))
+	area_chart.save('area_users.html') or { eprintln('Error: ${err}') }
+	println('Saved area_users.html')
 
-	// ── Histogram ──────────────────────────────────────────────────────────────
+	// ── Histogram — API response time distribution ─────────────────────────────
 	mut hist_chart := cuiqcharts.histogram(
-		title:  'Score Distribution'
-		colors: .latimes
-		width:  800
-		height: 450
-		x_axis: cuiqcharts.AxisConfig{ name: 'Score' }
-		y_axis: cuiqcharts.AxisConfig{ name: 'Count' }
+		title:    'API Response Time Distribution'
+		subtitle: 'p50 ≈ 48 ms  ·  p95 ≈ 92 ms  ·  n = 20 observations'
+		colors:   .latimes
+		width:    800
+		height:   420
+		bins:     12
+		x_axis:   cuiqcharts.AxisConfig{ name: 'Latency (ms)' }
+		y_axis:   cuiqcharts.AxisConfig{ name: 'Requests' }
 	)
-	hist_chart.add_series(cuiqcharts.new_series('Scores', [
-		72.0, 85.0, 91.0, 67.0, 78.0, 84.0, 76.0, 93.0, 61.0, 88.0,
-		74.0, 82.0, 79.0, 95.0, 70.0, 83.0, 77.0, 89.0, 65.0, 92.0,
+	hist_chart.add_series(cuiqcharts.new_series('Latency', [
+		28.0, 32.0, 35.0, 38.0, 40.0, 42.0, 44.0, 45.0, 46.0, 47.0,
+		48.0, 49.0, 51.0, 53.0, 55.0, 58.0, 62.0, 68.0, 78.0, 94.0,
 	]))
-	hist_chart.save('histogram.html') or { eprintln('Error saving histogram: ${err}') }
-	println('Saved histogram.html')
+	hist_chart.save('histogram_latency.html') or { eprintln('Error: ${err}') }
+	println('Saved histogram_latency.html')
 
-	// ── Heatmap — sequential palette (light → dark) for quantitative cells ────
+	// ── Heatmap — NPS by region and quarter ───────────────────────────────────
 	mut heat_chart := cuiqcharts.heatmap(
-		title:  'Activity Heatmap'
-		colors: .latimes
-		width:  700
-		height: 400
-		x_axis: cuiqcharts.AxisConfig{ name: 'Time' }
-		y_axis: cuiqcharts.AxisConfig{ name: 'Day' }
+		title:    'Net Promoter Score by Region and Quarter'
+		subtitle: 'Darker = higher NPS (0–100 scale)'
+		colors:   .latimes
+		width:    700
+		height:   360
+		x_axis:   cuiqcharts.AxisConfig{ name: 'Quarter' }
+		y_axis:   cuiqcharts.AxisConfig{ name: 'Region' }
 	)
-	heat_chart.add_series(cuiqcharts.named_series('Mon', ['9am', '12pm', '3pm', '6pm'],
-		[0.3, 0.8, 0.6, 0.4]))
-	heat_chart.add_series(cuiqcharts.named_series('Tue', ['9am', '12pm', '3pm', '6pm'],
-		[0.5, 0.9, 0.7, 0.2]))
-	heat_chart.add_series(cuiqcharts.named_series('Wed', ['9am', '12pm', '3pm', '6pm'],
-		[0.4, 0.7, 0.8, 0.5]))
-	heat_chart.save('heatmap.html') or { eprintln('Error saving heatmap: ${err}') }
-	println('Saved heatmap.html')
+	heat_chart.add_series(cuiqcharts.named_series('APAC',          ['Q1','Q2','Q3','Q4'], [62.0, 65.0, 68.0, 71.0]))
+	heat_chart.add_series(cuiqcharts.named_series('EMEA',          ['Q1','Q2','Q3','Q4'], [54.0, 58.0, 55.0, 61.0]))
+	heat_chart.add_series(cuiqcharts.named_series('LATAM',         ['Q1','Q2','Q3','Q4'], [48.0, 52.0, 57.0, 60.0]))
+	heat_chart.add_series(cuiqcharts.named_series('North America', ['Q1','Q2','Q3','Q4'], [71.0, 69.0, 73.0, 76.0]))
+	heat_chart.save('heatmap_nps.html') or { eprintln('Error: ${err}') }
+	println('Saved heatmap_nps.html')
 
-	// ── Bar chart with error bars ──────────────────────────────────────────────
+	// ── Bar with error bars — A/B test conversion rates ───────────────────────
 	mut errorbar_chart := cuiqcharts.bar_errorbar(
-		title:  'Crop Yield by Variety (with 95% CI)'
-		colors: .tableau
-		width:  700
-		height: 450
-		x_axis: cuiqcharts.AxisConfig{ name: 'Variety' }
-		y_axis: cuiqcharts.AxisConfig{ name: 'Yield (bushels/acre)' }
+		title:    'A/B Test — Conversion Rate by Variant (95% CI)'
+		subtitle: 'Error bars = 95% confidence interval; n ≈ 2 000 sessions per variant'
+		colors:   .latimes
+		width:    800
+		height:   450
+		x_axis:   cuiqcharts.AxisConfig{ name: 'Variant' }
+		y_axis:   cuiqcharts.AxisConfig{ name: 'Conversion Rate (%)' }
 	)
 	errorbar_chart.add_series(cuiqcharts.error_series(
-		'Yield',
-		['Gopher', 'Manchuria', 'No. 457', 'No. 462', 'Peatland', 'Svansota', 'Trebi', 'Velvet', 'Wisconsin No. 38'],
-		[16.865, 30.967, 33.967, 30.450, 34.533, 16.865, 39.567, 33.967, 38.917],
-		[3.2, 4.1, 3.8, 2.9, 4.5, 3.2, 5.1, 3.8, 4.7],
-		[],
+		'Conversion %',
+		['Control', 'Variant A', 'Variant B', 'Variant C'],
+		[3.2,  3.8,  4.6,  3.5],   // means
+		[0.4,  0.5,  0.6,  0.4],   // ± CI half-width
+		[],                          // symmetric
 	))
-	errorbar_chart.save('bar_errorbar.html') or { eprintln('Error saving bar_errorbar: ${err}') }
+	errorbar_chart.save('bar_errorbar.html') or { eprintln('Error: ${err}') }
 	println('Saved bar_errorbar.html')
 
-	// ── Rolling average over raw values ───────────────────────────────────────
+	// ── Rolling mean — daily signups with 7-day smoothing ─────────────────────
 	mut rolling_chart := cuiqcharts.rolling_mean(
-		title:          'Daily Temperature with 7-Day Rolling Average'
+		title:          'Daily New Signups — April 2026'
+		subtitle:       'Faint dots = raw daily count  ·  line = 7-day rolling average'
 		colors:         .default_scheme
 		width:          900
-		height:         400
+		height:         420
 		rolling_window: 7
-		x_axis:         cuiqcharts.AxisConfig{ name: 'Day' }
-		y_axis:         cuiqcharts.AxisConfig{ name: 'Temperature (°C)' }
+		x_axis:         cuiqcharts.AxisConfig{ name: 'Date' }
+		y_axis:         cuiqcharts.AxisConfig{ name: 'Signups' }
 	)
-	rolling_chart.add_series(cuiqcharts.named_series('Temperature',
-		['1','2','3','4','5','6','7','8','9','10','11','12','13','14','15',
-		 '16','17','18','19','20','21','22','23','24','25','26','27','28'],
-		[12.0, 14.0, 11.0, 16.0, 18.0, 15.0, 13.0, 17.0, 20.0, 19.0, 22.0, 21.0,
-		 18.0, 16.0, 19.0, 23.0, 25.0, 24.0, 22.0, 20.0, 18.0, 21.0, 23.0, 26.0,
-		 28.0, 27.0, 25.0, 24.0]))
-	rolling_chart.save('rolling_mean.html') or { eprintln('Error saving rolling_mean: ${err}') }
-	println('Saved rolling_mean.html')
+	rolling_chart.add_series(cuiqcharts.named_series('Signups',
+		['Apr 1','Apr 2','Apr 3','Apr 4','Apr 5','Apr 6','Apr 7',
+		 'Apr 8','Apr 9','Apr 10','Apr 11','Apr 12','Apr 13','Apr 14',
+		 'Apr 15','Apr 16','Apr 17','Apr 18','Apr 19','Apr 20','Apr 21',
+		 'Apr 22','Apr 23','Apr 24','Apr 25','Apr 26','Apr 27','Apr 28'],
+		[312.0, 348.0, 295.0, 181.0, 165.0, 220.0, 356.0,
+		 371.0, 389.0, 323.0, 195.0, 178.0, 241.0, 382.0,
+		 410.0, 396.0, 423.0, 210.0, 189.0, 265.0, 404.0,
+		 428.0, 411.0, 387.0, 225.0, 208.0, 282.0, 451.0]))
+	rolling_chart.save('rolling_signups.html') or { eprintln('Error: ${err}') }
+	println('Saved rolling_signups.html')
 
-	// ── Line chart with confidence interval band ───────────────────────────────
-	mut ci_chart := cuiqcharts.line_ci(
-		title:  'Fuel Efficiency Over Time (with Confidence Band)'
-		colors: .latimes
-		width:  800
-		height: 400
-		x_axis: cuiqcharts.AxisConfig{ name: 'Year' }
-		y_axis: cuiqcharts.AxisConfig{ name: 'Miles per Gallon' }
+	// ── Line CI — quarterly revenue forecast with confidence band ─────────────
+	// Q1–Q4 2024 and Q1–Q3 2025 = historical actuals (zero error band).
+	// Q4 2025 and 2026 quarters = model forecast with widening prediction interval.
+	mut forecast_chart := cuiqcharts.line_ci(
+		title:    'Quarterly Revenue — Historical + Forecast'
+		subtitle: 'Shaded band = 90% prediction interval; band widens further out'
+		colors:   .latimes
+		width:    900
+		height:   450
+		x_axis:   cuiqcharts.AxisConfig{ name: 'Quarter' }
+		y_axis:   cuiqcharts.AxisConfig{ name: 'Revenue (USD millions)', format: ',.1f' }
 	)
-	ci_chart.add_series(cuiqcharts.error_series(
-		'Mean MPG',
-		['1970', '1971', '1972', '1973', '1974', '1975', '1976', '1977', '1978', '1979', '1980', '1981', '1982'],
-		[17.7, 21.1, 18.7, 17.1, 22.7, 20.2, 21.6, 23.4, 24.4, 25.9, 33.7, 30.3, 31.7],
-		[2.1, 1.8, 2.3, 1.9, 2.5, 2.0, 1.7, 2.2, 2.8, 2.4, 3.1, 2.6, 2.9],
+	forecast_chart.add_series(cuiqcharts.error_series(
+		'Revenue',
+		['Q1 24','Q2 24','Q3 24','Q4 24', 'Q1 25','Q2 25','Q3 25','Q4 25',
+		 'Q1 26','Q2 26','Q3 26','Q4 26'],
+		[4.2, 4.8, 4.5, 5.6,  5.9, 6.4, 6.1, 7.2,  7.8, 8.3, 8.0, 8.9],
+		[0.0, 0.0, 0.0, 0.0,  0.0, 0.0, 0.0, 0.4,  0.7, 1.1, 1.5, 2.0],
 		[],
 	))
-	ci_chart.save('line_ci.html') or { eprintln('Error saving line_ci: ${err}') }
-	println('Saved line_ci.html')
+	forecast_chart.save('revenue_forecast.html') or { eprintln('Error: ${err}') }
+	println('Saved revenue_forecast.html')
 
-	// ── Waterfall chart ────────────────────────────────────────────────────────
-	// "Begin" and "End" are Total bars: they anchor to y=0 and span the running sum.
-	// Begin carries the opening balance; End amount=0 displays the final cumulative total.
+	// ── Waterfall — annual P&L bridge ─────────────────────────────────────────
+	// "Begin" anchors to 0 (opening balance). "End" with amount=0 shows the final total.
 	mut wfall_chart := cuiqcharts.waterfall(
-		title:  'Annual Profit & Loss'
-		colors: .latimes
-		width:  900
-		height: 450
-		x_axis: cuiqcharts.AxisConfig{ name: 'Period' }
-		y_axis: cuiqcharts.AxisConfig{ name: 'USD thousands' }
+		title:    'Annual P&L Bridge — FY 2025'
+		subtitle: 'Green = gains  ·  Red = costs  ·  Grey = totals'
+		colors:   .latimes
+		width:    1000
+		height:   450
+		x_axis:   cuiqcharts.AxisConfig{ name: 'P&L Component' }
+		y_axis:   cuiqcharts.AxisConfig{ name: 'USD thousands', format: ',.0f' }
 	)
 	wfall_chart.add_series(cuiqcharts.named_series('',
-		['Begin', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-		 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'End'],
-		[500.0, 120.0, -40.0, 80.0, -20.0, 150.0, -60.0, 90.0, 30.0, -50.0, 110.0, -30.0, 70.0, 0.0]))
-	wfall_chart.save('waterfall.html') or { eprintln('Error saving waterfall: ${err}') }
-	println('Saved waterfall.html')
+		['Begin', 'Subscription', 'Services', 'COGS', 'S&M', 'R&D', 'G&A', 'Tax', 'End'],
+		[800.0, 1240.0, 380.0, -620.0, -410.0, -290.0, -180.0, -95.0, 0.0]))
+	wfall_chart.save('waterfall_pl.html') or { eprintln('Error: ${err}') }
+	println('Saved waterfall_pl.html')
 
-	// ── Amplitude funnel chart ─────────────────────────────────────────────────
-	mut funnel_chart := cuiqcharts.funnel(
-		title:  'Conversion Funnel'
-		labels: cuiqcharts.LabelConfig{ show: true }
-		colors: .tableau
-		width:  800
-		height: 400
-		x_axis: cuiqcharts.AxisConfig{ name: 'Stage' }
-		y_axis: cuiqcharts.AxisConfig{ name: 'Users' }
-	)
+	// ── Funnel — e-commerce conversion ────────────────────────────────────────
 	stages := ['Awareness', 'Interest', 'Consideration', 'Intent', 'Purchase']
+	mut funnel_chart := cuiqcharts.funnel(
+		title:    'E-commerce Conversion Funnel — November 2025'
+		subtitle: 'Opaque = converted  ·  Faded = drop-off at each stage'
+		labels:   cuiqcharts.LabelConfig{ show: true }
+		colors:   .tableau
+		width:    840
+		height:   420
+		x_axis:   cuiqcharts.AxisConfig{ name: 'Stage' }
+		y_axis:   cuiqcharts.AxisConfig{ name: 'Visitors' }
+	)
 	funnel_chart.add_series(cuiqcharts.named_series('Converted', stages,
 		[8500.0, 6200.0, 4100.0, 2800.0, 1900.0]))
 	funnel_chart.add_series(cuiqcharts.named_series('Drop-off', stages,
 		[1500.0, 2100.0, 2100.0, 1300.0, 900.0]))
-	funnel_chart.save('funnel.html') or { eprintln('Error saving funnel: ${err}') }
+	funnel_chart.save('funnel.html') or { eprintln('Error: ${err}') }
 	println('Saved funnel.html')
 
-	// ── Box plot — clinical trial results across treatment arms ───────────────
+	// ── Box plot — API response time by endpoint ───────────────────────────────
 	mut box_chart := cuiqcharts.box_plot(
-		title:    'Patient Response by Treatment Arm'
-		subtitle: 'Phase III Trial — Primary Endpoint Score'
+		title:    'API Response Time by Endpoint'
+		subtitle: 'Box = IQR  ·  whiskers = min–max  ·  colorblind-safe palette'
 		colors:   .colorblind
-		width:    800
-		height:   500
-		x_axis:   cuiqcharts.AxisConfig{ name: 'Treatment' }
-		y_axis:   cuiqcharts.AxisConfig{ name: 'Response Score' }
+		width:    880
+		height:   480
+		x_axis:   cuiqcharts.AxisConfig{ name: 'Endpoint' }
+		y_axis:   cuiqcharts.AxisConfig{ name: 'Response Time (ms)' }
 	)
-	box_chart.add_series(cuiqcharts.new_series('Placebo', [
-		22.0, 18.0, 25.0, 20.0, 17.0, 23.0, 21.0, 19.0, 24.0, 16.0,
-		26.0, 20.0, 22.0, 18.0, 21.0, 19.0, 23.0, 20.0, 17.0, 25.0,
-	]))
-	box_chart.add_series(cuiqcharts.new_series('Low Dose', [
-		31.0, 28.0, 35.0, 33.0, 29.0, 37.0, 32.0, 30.0, 36.0, 34.0,
-		28.0, 33.0, 31.0, 38.0, 30.0, 35.0, 32.0, 29.0, 36.0, 34.0,
-	]))
-	box_chart.add_series(cuiqcharts.new_series('High Dose', [
-		44.0, 48.0, 41.0, 52.0, 46.0, 50.0, 43.0, 49.0, 55.0, 47.0,
-		42.0, 51.0, 45.0, 53.0, 48.0, 40.0, 57.0, 46.0, 44.0, 50.0,
-	]))
-	box_chart.add_series(cuiqcharts.new_series('Combo', [
-		58.0, 62.0, 55.0, 67.0, 60.0, 64.0, 59.0, 63.0, 70.0, 57.0,
-		61.0, 66.0, 54.0, 68.0, 62.0, 56.0, 65.0, 61.0, 59.0, 63.0,
-	]))
-	box_chart.save('box_plot.html') or { eprintln('Error saving box_plot: ${err}') }
-	println('Saved box_plot.html')
+	box_chart.add_series(cuiqcharts.new_series('/api/users',    [22.0, 18.0, 25.0, 20.0, 17.0, 23.0, 21.0, 19.0, 24.0, 28.0]))
+	box_chart.add_series(cuiqcharts.new_series('/api/orders',   [45.0, 38.0, 52.0, 48.0, 41.0, 55.0, 43.0, 50.0, 47.0, 61.0]))
+	box_chart.add_series(cuiqcharts.new_series('/api/products', [31.0, 27.0, 35.0, 33.0, 29.0, 38.0, 32.0, 36.0, 30.0, 42.0]))
+	box_chart.add_series(cuiqcharts.new_series('/api/search',   [88.0, 72.0, 105.0, 94.0, 81.0, 98.0, 76.0, 112.0, 85.0, 120.0]))
+	box_chart.save('boxplot_latency.html') or { eprintln('Error: ${err}') }
+	println('Saved boxplot_latency.html')
 
-	// ── SPC control chart — injection moulding part thickness ─────────────────
-	// Samples 18 and 24 approach/breach the UCL (process drift).
+	// ── SPC — injection moulding part thickness ────────────────────────────────
+	// Samples 18 and 24 approach/breach UCL (process drift visible in trend).
 	mut ctrl_chart := cuiqcharts.line(
 		title:    'Part Thickness — Injection Moulding Process'
 		subtitle: 'X-bar chart  |  UCL = 10.45 mm  |  CL = 10.00 mm  |  LCL = 9.55 mm'
@@ -275,18 +335,18 @@ fn main() {
 		cl_label:  'CL = 10.00'
 		lcl_label: 'LCL = 9.55'
 	})
-	ctrl_chart.save('control_chart.html') or { eprintln('Error saving control_chart: ${err}') }
-	println('Saved control_chart.html')
+	ctrl_chart.save('spc_chart.html') or { eprintln('Error: ${err}') }
+	println('Saved spc_chart.html')
 
-	// ── Daily website traffic with 7-day rolling average overlay ─────────────
+	// ── Rolling average overlay — daily website sessions ───────────────────────
 	mut traffic_chart := cuiqcharts.line(
 		title:    'Daily Website Sessions — April 2026'
-		subtitle: 'Raw daily count with 7-day rolling average'
+		subtitle: 'Raw daily count with 7-day rolling average overlay'
 		colors:   .default_scheme
 		width:    1000
 		height:   420
 		x_axis:   cuiqcharts.AxisConfig{ name: 'Date' }
-		y_axis:   cuiqcharts.AxisConfig{ name: 'Sessions' }
+		y_axis:   cuiqcharts.AxisConfig{ name: 'Sessions', format: ',.0f' }
 	)
 	traffic_days := [
 		'Apr 1','Apr 2','Apr 3','Apr 4','Apr 5','Apr 6','Apr 7',
@@ -308,36 +368,36 @@ fn main() {
 		color:  '#e15759'
 		dash:   .dashed
 	})
-	traffic_chart.save('rolling_avg_overlay.html') or { eprintln('Error saving rolling_avg_overlay: ${err}') }
-	println('Saved rolling_avg_overlay.html')
+	traffic_chart.save('traffic_rolling_avg.html') or { eprintln('Error: ${err}') }
+	println('Saved traffic_rolling_avg.html')
 
-	// ── Dose-response curve with asymmetric error bars overlay ────────────────
+	// ── Asymmetric error bars overlay — enzyme kinetics ───────────────────────
 	mut dose_chart := cuiqcharts.line(
 		title:    'Enzyme Activity vs Substrate Concentration'
 		subtitle: 'Mean ± SEM  (n = 8 replicates per concentration)'
 		colors:   .colorblind
 		width:    850
 		height:   450
-		x_axis:   cuiqcharts.AxisConfig{ name: 'Substrate (mM)' }
+		x_axis:   cuiqcharts.AxisConfig{ name: 'Substrate Concentration (mM)' }
 		y_axis:   cuiqcharts.AxisConfig{ name: 'Activity (nmol/min/mg)' }
 	)
-	dose_conc   := ['0.5', '1.0', '2.0', '4.0', '8.0', '16.0', '32.0', '64.0']
+	dose_conc   := ['0.5','1.0','2.0','4.0','8.0','16.0','32.0','64.0']
 	dose_mean   := [12.3, 22.8, 38.4, 57.6, 74.1, 85.3, 91.7, 94.2]
-	dose_sem_hi := [1.8, 2.4, 3.1, 3.8, 4.2, 3.9, 3.4, 2.9]
-	dose_sem_lo := [1.5, 2.1, 2.8, 3.4, 3.9, 3.6, 3.1, 2.6]
+	dose_sem_hi := [1.8,  2.4,  3.1,  3.8,  4.2,  3.9,  3.4,  2.9]
+	dose_sem_lo := [1.5,  2.1,  2.8,  3.4,  3.9,  3.6,  3.1,  2.6]
 	dose_chart.add_series(cuiqcharts.named_series('Activity', dose_conc, dose_mean))
 	dose_chart.add_error_bars(cuiqcharts.ErrorBarsOverlay{
 		series_name: 'Activity'
 		plus:        dose_sem_hi
 		minus:       dose_sem_lo
 	})
-	dose_chart.save('error_bars_overlay.html') or { eprintln('Error saving error_bars_overlay: ${err}') }
-	println('Saved error_bars_overlay.html')
+	dose_chart.save('dose_response.html') or { eprintln('Error: ${err}') }
+	println('Saved dose_response.html')
 
-	// ── Area chart with control limits — server latency monitoring ────────────
+	// ── Area + control limits — API p95 latency monitoring ────────────────────
 	mut latency_chart := cuiqcharts.area(
-		title:    'API Latency — p95 Response Time'
-		subtitle: 'Control limits based on 30-day baseline'
+		title:    'API p95 Latency — 24-Hour Hourly View (UTC)'
+		subtitle: 'Control limits derived from 30-day baseline; peak at business hours'
 		colors:   .default_scheme
 		width:    1000
 		height:   400
@@ -347,14 +407,14 @@ fn main() {
 	latency_hours := ['00','01','02','03','04','05','06','07','08','09','10','11',
 	                  '12','13','14','15','16','17','18','19','20','21','22','23']
 	latency_chart.add_series(cuiqcharts.named_series('p95', latency_hours, [
-		42.0, 38.0, 35.0, 33.0, 34.0, 40.0, 68.0, 112.0, 145.0, 138.0, 131.0, 142.0,
+		42.0, 38.0, 35.0, 33.0, 34.0,  40.0,  68.0, 112.0, 145.0, 138.0, 131.0, 142.0,
 		155.0, 148.0, 152.0, 144.0, 139.0, 143.0, 137.0, 118.0, 95.0, 74.0, 58.0, 48.0,
 	]))
 	latency_chart.set_control_limits(cuiqcharts.ControlLimitsOverlay{
 		ucl: 160.0  cl: 95.0  lcl: 30.0
 		ucl_label: 'UCL'  cl_label: 'Baseline'  lcl_label: 'LCL'
-		cl_color:  '#888888'
+		cl_color: '#888888'
 	})
-	latency_chart.save('latency_control.html') or { eprintln('Error saving latency_control: ${err}') }
+	latency_chart.save('latency_control.html') or { eprintln('Error: ${err}') }
 	println('Saved latency_control.html')
 }

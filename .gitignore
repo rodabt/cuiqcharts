@@ -1,4 +1,7 @@
 .claude/
+.vscode/
 docs/
 TODO.md
 examples/**/*.html
+OPPORTUNITIES.md
+examples/basic/main

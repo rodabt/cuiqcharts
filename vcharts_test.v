@@ -212,3 +212,124 @@ fn test_candlestick_unsupported() {
 	json := c.to_json()
 	assert json.contains('vega.github.io/schema/vega-lite'), 'should return valid stub spec'
 }
+
+// ─── Fix: ref lines and annotations rendered ──────────────────────────────────
+
+fn test_ref_line_rendered() {
+	mut c := bar(title: 'RefLine',
+		ref_lines: [RefLine{ axis: 'y', value: 100.0, label: 'Target', color: '#ff0000', dash: .dashed }])
+	c.add_series(named_series('Sales', ['A', 'B'], [80.0, 120.0]))
+	json := c.to_json()
+	assert json.contains('"type":"rule"'), 'rule mark missing'
+	assert json.contains('100'), 'ref line value missing'
+	assert json.contains('Target'), 'ref line label missing'
+}
+
+fn test_annotation_rendered() {
+	mut c := scatter(title: 'Annotated',
+		annotations: [Annotation{ x: 2.0, y: 4.0, text: 'Peak', color: '#333333', size: 12 }])
+	c.add_series(xy_series('D', [[1.0, 1.0], [2.0, 4.0]]))
+	json := c.to_json()
+	assert json.contains('"Peak"'), 'annotation text missing'
+	assert json.contains('"type":"text"'), 'text mark missing for annotation'
+}
+
+// ─── Fix: trend line rendered ─────────────────────────────────────────────────
+
+fn test_trend_line_scatter_uses_vl_regression() {
+	mut c := scatter(title: 'Trend Scatter', trend_line: true)
+	c.add_series(xy_series('D', [[1.0, 1.0], [2.0, 4.0], [3.0, 9.0]]))
+	json := c.to_json()
+	assert json.contains('"regression"'), 'Vega-Lite regression transform missing'
+}
+
+fn test_trend_line_nominal_uses_ols() {
+	mut c := line(title: 'Trend Line', trend_line: true)
+	c.add_series(named_series('D', ['Jan', 'Feb', 'Mar'], [10.0, 20.0, 30.0]))
+	json := c.to_json()
+	assert json.contains('"__trend"'), 'OLS trend data field missing'
+	assert json.contains('"strokeDash"'), 'dashed trend line missing'
+}
+
+// ─── Fix: zoom params ─────────────────────────────────────────────────────────
+
+fn test_zoom_params_emitted() {
+	mut c := line(title: 'Zoom', zoom: true)
+	c.add_series(named_series('D', ['A', 'B'], [1.0, 2.0]))
+	json := c.to_json()
+	assert json.contains('"params"'), 'zoom params missing'
+	assert json.contains('"bind":"scales"'), 'zoom bind:scales missing'
+}
+
+fn test_no_zoom_params_by_default() {
+	mut c := line(title: 'No Zoom')
+	c.add_series(named_series('D', ['A', 'B'], [1.0, 2.0]))
+	json := c.to_json()
+	assert !json.contains('"bind":"scales"'), 'zoom should not appear when zoom:false'
+}
+
+// ─── Fix: axis number format ──────────────────────────────────────────────────
+
+fn test_y_axis_format_applied() {
+	mut c := bar(title: 'Formatted', y_axis: AxisConfig{ name: 'Revenue', format: ',.0f' })
+	c.add_series(named_series('Rev', ['Q1'], [1200000.0]))
+	json := c.to_json()
+	assert json.contains('"format":",.0f"'), 'y axis format missing from spec'
+}
+
+fn test_x_axis_format_applied_hbar() {
+	mut c := hbar(title: 'HBar Fmt', x_axis: AxisConfig{ name: 'Value', format: '.2s' })
+	c.add_series(named_series('D', ['A', 'B'], [1000.0, 2000.0]))
+	json := c.to_json()
+	assert json.contains('"format":".2s"'), 'x axis format missing in hbar'
+}
+
+// ─── Fix: HTML title as HTML div, not in VL spec ─────────────────────────────
+
+fn test_html_title_in_div_not_in_spec() {
+	mut c := bar(title: 'My Chart', subtitle: 'Q3 Results')
+	c.add_series(named_series('D', ['A'], [1.0]))
+	html := c.to_html()
+	assert html.contains('<div class="chart-title">My Chart</div>'), 'title div missing'
+	assert html.contains('<div class="chart-subtitle">Q3 Results</div>'), 'subtitle div missing'
+	// JSON spec itself should still carry the title (for standalone use)
+	json := c.to_json()
+	assert json.contains('My Chart'), 'title should remain in standalone JSON'
+}
+
+// ─── Fix: direct labels on line charts ───────────────────────────────────────
+
+fn test_direct_labels_suppresses_legend() {
+	mut c := line(title: 'Direct', direct_labels: true)
+	c.add_series(named_series('Sales', ['Q1', 'Q2'], [100.0, 120.0]))
+	c.add_series(named_series('Costs', ['Q1', 'Q2'], [80.0, 90.0]))
+	json := c.to_json()
+	assert json.contains('"legend":null'), 'legend should be null with direct_labels'
+	assert json.contains('"value":"Sales"'), 'direct label for Sales missing'
+	assert json.contains('"value":"Costs"'), 'direct label for Costs missing'
+}
+
+// ─── Fix: scatter axis title defaults removed ─────────────────────────────────
+
+fn test_scatter_no_default_axis_titles() {
+	mut c := scatter(title: 'Scatter')
+	c.add_series(xy_series('D', [[1.0, 2.0], [3.0, 4.0]]))
+	json := c.to_json()
+	assert !json.contains('"title":"x"'), 'scatter must not default x title to "x"'
+	assert !json.contains('"title":"y"'), 'scatter must not default y title to "y"'
+}
+
+// ─── Fix: Tableau palette capped at 7 colors ──────────────────────────────────
+
+fn test_tableau_capped_at_7_colors() {
+	// Multi-series triggers vl_color_range which embeds all palette colors in the spec
+	mut c := line(title: 'Tableau 7', colors: .tableau)
+	c.add_series(named_series('A', ['X'], [1.0]))
+	c.add_series(named_series('B', ['X'], [2.0]))
+	json := c.to_json()
+	assert json.contains('#4E79A7'), 'first tableau color present'
+	assert json.contains('#B07AA1'), '7th tableau color present'
+	assert !json.contains('#FF9DA7'), '8th tableau color must not appear'
+	assert !json.contains('#9C755F'), '9th tableau color must not appear'
+	assert !json.contains('#BAB0AC'), '10th tableau color must not appear'
+}

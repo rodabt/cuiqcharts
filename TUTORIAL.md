@@ -135,7 +135,19 @@ c.add_series(cuiqcharts.named_series('Costs',
 c.save('line.html')!
 ```
 
-Enable a least-squares trend line with `trend_line: true`.
+Enable a least-squares trend line with `trend_line: true`. On scatter charts the trend is computed by Vega-Lite's regression transform; on line/area charts it is computed in V (OLS per series).
+
+For multi-series charts, replace the legend with direct end-of-line labels using `direct_labels: true`:
+
+```v
+mut c := cuiqcharts.line(
+    title:         'Sales vs Costs'
+    direct_labels: true
+)
+c.add_series(cuiqcharts.named_series('Sales', ['Q1','Q2','Q3','Q4'], [100.0,120.0,115.0,140.0]))
+c.add_series(cuiqcharts.named_series('Costs', ['Q1','Q2','Q3','Q4'], [ 80.0, 90.0, 85.0, 95.0]))
+c.save('line_direct.html')!
+```
 
 ### Area chart
 
@@ -325,12 +337,40 @@ cuiqcharts.AxisConfig{
     min:       0.0               // force axis to start at 0
     has_max:   true
     max:       1000.0
-    format:    '.2f'             // number format string
+    format:    ',.0f'            // number format string — e.g. ',.0f' → 1,200,000 | '.2s' → 1.2M | '.0%' → 42%
     rotate:    45                // label rotation in degrees
 }
 ```
 
+The `format` string follows [D3 format](https://d3js.org/d3-format) conventions and is applied directly to axis tick labels. Common examples:
+
+| format | renders as |
+|---|---|
+| `',.0f'` | 1,200,000 |
+| `'.2s'`  | 1.2M |
+| `'.0%'`  | 42% |
+| `'.2f'`  | 3.14 |
+
 Use `y2_axis` in `ChartConfig` to add a secondary Y axis, then set `y_axis_index: 1` on the series you want plotted against it.
+
+---
+
+## Interactivity
+
+### Zoom and pan
+
+Add brush-to-zoom on any chart with `zoom: true`:
+
+```v
+mut c := cuiqcharts.scatter(
+    title: 'Height vs Weight'
+    zoom:  true
+    x_axis: cuiqcharts.AxisConfig{ name: 'Height (cm)' }
+    y_axis: cuiqcharts.AxisConfig{ name: 'Weight (kg)' }
+)
+```
+
+Click-and-drag to zoom into a region; scroll to pan; double-click to reset.
 
 ---
 
@@ -354,7 +394,7 @@ colors: .dark_scheme
 colors: .vibrant
 colors: .colorblind   // Okabe-Ito 8-color accessible palette
 colors: .material     // Material Design
-colors: .tableau      // Tableau 10
+colors: .tableau      // Tableau (7 colors — capped at the categorical best-practice limit)
 ```
 
 ---
@@ -401,14 +441,27 @@ c.add_error_bars(cuiqcharts.ErrorBarsOverlay{
 
 ### Reference lines and annotations
 
+`RefLine` draws a horizontal (`axis: 'y'`) or vertical (`axis: 'x'`) rule across the chart at a given value, with an optional label:
+
 ```v
 mut c := cuiqcharts.line(
     title:     'SLA Compliance'
     ref_lines: [
         cuiqcharts.RefLine{ axis: 'y', value: 200.0, label: 'SLA limit', color: '#e53935' },
+        cuiqcharts.RefLine{ axis: 'y', value: 150.0, label: 'Warning',   color: '#fb8c00', dash: .dashed },
     ]
+)
+```
+
+`Annotation` places a text label at a fixed `(x, y)` data coordinate. Both `x` and `y` are numeric, so annotations are most useful on scatter charts where both axes are quantitative:
+
+```v
+mut c := cuiqcharts.scatter(
+    title:  'Latency vs Throughput'
+    x_axis: cuiqcharts.AxisConfig{ name: 'Throughput (rps)' }
+    y_axis: cuiqcharts.AxisConfig{ name: 'Latency (ms)' }
     annotations: [
-        cuiqcharts.Annotation{ x: 5.0, y: 210.0, text: 'Incident', color: '#e53935' },
+        cuiqcharts.Annotation{ x: 850.0, y: 120.0, text: 'Saturation point', color: '#e53935' },
     ]
 )
 ```

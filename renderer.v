@@ -21,7 +21,7 @@ fn color_palette(cs ColorScheme) []string {
 		// Paul Tol "Vibrant" — for line charts and scatter plots needing high contrast
 		.vibrant        { ['#0077BB','#33BBEE','#009988','#EE7733','#CC3311','#EE3377','#BBBBBB'] }
 		// Tableau 10 — industry standard, designed by data visualization researchers
-		.tableau        { ['#4E79A7','#F28E2B','#E15759','#76B7B2','#59A14F','#EDC948','#B07AA1','#FF9DA7','#9C755F','#BAB0AC'] }
+		.tableau        { ['#4E79A7','#F28E2B','#E15759','#76B7B2','#59A14F','#EDC948','#B07AA1'] }
 		// ColorBrewer "Set1" adapted — strong hues for categorical distinctions on maps and charts
 		.material       { ['#E41A1C','#377EB8','#4DAF4A','#984EA3','#FF7F00','#A65628','#F781BF','#999999'] }
 	}
@@ -179,6 +179,19 @@ fn vl_legend(pos LegendPos) string {
 	}
 }
 
+// vl_fmt_axis appends a Vega-Lite "axis" format fragment for quantitative encodings.
+// Usage: ',"y":{"field":"y","type":"quantitative",...${vl_fmt_axis(c.config.y_axis)}}'.
+fn vl_fmt_axis(ac AxisConfig) string {
+	if ac.format == '' { return '' }
+	return ',"axis":{"format":${json_str(ac.format)}}'
+}
+
+// vl_zoom_params returns Vega-Lite params that enable brush-to-zoom / pan when zoom is set.
+fn vl_zoom_params(cfg ChartConfig) string {
+	if !cfg.zoom { return '' }
+	return ',"params":[{"name":"grid","select":"interval","bind":"scales"}]'
+}
+
 // ─── Data serialization ────────────────────────────────────────────────────────
 
 // series_to_xy_data flattens named series into [{x,y,s}] for bar/line/area/hbar.
@@ -283,8 +296,9 @@ fn render_bar(c Chart) string {
 	}
 	x_title := if c.config.x_axis.name != '' { c.config.x_axis.name } else { '' }
 	y_title := if c.config.y_axis.name != '' { c.config.y_axis.name } else { '' }
+	y_fmt := vl_fmt_axis(c.config.y_axis)
 	offset := if multi { ',"xOffset":{"field":"s","type":"nominal"}' } else { '' }
-	enc := '{"x":{"field":"x","type":"nominal","title":${json_str(x_title)},"axis":{"labelAngle":0}},"y":{"field":"y","type":"quantitative","title":${json_str(y_title)}}${offset},${color_enc}}'
+	enc := '{"x":{"field":"x","type":"nominal","title":${json_str(x_title)},"axis":{"labelAngle":0}},"y":{"field":"y","type":"quantitative","title":${json_str(y_title)}${y_fmt}}${offset},${color_enc}}'
 	header := '"\$schema":${json_str(vl_schema)},"title":${vl_title(c.config)},"width":${c.config.width},"height":${c.config.height},"data":{"values":${data}}'
 	base := '{"mark":{"type":"bar","tooltip":true},"encoding":${enc}}'
 	mut layers := [base]
@@ -299,10 +313,11 @@ fn render_bar(c Chart) string {
 		layers << '{"mark":${text_mark},"encoding":${text_enc}}'
 	}
 	layers << overlay_layers(c, 'x', 'nominal')
+	zoom := vl_zoom_params(c.config)
 	if layers.len == 1 {
-		return '{${header},"mark":{"type":"bar","tooltip":true},"encoding":${enc},${vl_config(c.config)}}'
+		return '{${header}${zoom},"mark":{"type":"bar","tooltip":true},"encoding":${enc},${vl_config(c.config)}}'
 	}
-	return '{${header},"layer":[${layers.join(',')}],${vl_config(c.config)}}'
+	return '{${header}${zoom},"layer":[${layers.join(',')}],${vl_config(c.config)}}'
 }
 
 fn render_hbar(c Chart) string {
@@ -317,10 +332,12 @@ fn render_hbar(c Chart) string {
 	}
 	x_title := if c.config.x_axis.name != '' { c.config.x_axis.name } else { '' }
 	y_title := if c.config.y_axis.name != '' { c.config.y_axis.name } else { '' }
-	enc := '{"y":{"field":"x","type":"nominal","title":${json_str(y_title)},"sort":"-x"},"x":{"field":"y","type":"quantitative","title":${json_str(x_title)}},${color_enc}}'
+	x_fmt := vl_fmt_axis(c.config.x_axis)
+	enc := '{"y":{"field":"x","type":"nominal","title":${json_str(y_title)},"sort":"-x"},"x":{"field":"y","type":"quantitative","title":${json_str(x_title)}${x_fmt}},${color_enc}}'
 	header := '"\$schema":${json_str(vl_schema)},"title":${vl_title(c.config)},"width":${c.config.width},"height":${c.config.height},"data":{"values":${data}}'
+	zoom := vl_zoom_params(c.config)
 	if !c.config.labels.show {
-		return '{${header},"mark":{"type":"bar","tooltip":true},"encoding":${enc},${vl_config(c.config)}}'
+		return '{${header}${zoom},"mark":{"type":"bar","tooltip":true},"encoding":${enc},${vl_config(c.config)}}'
 	}
 	inside := label_inside(c.config.labels, false)
 	lsize := label_size(c.config.labels)
@@ -331,22 +348,24 @@ fn render_hbar(c Chart) string {
 	text_mark := '{"type":"text","dx":${dx},"align":"${align}","baseline":"middle","fontSize":${lsize}}'
 	text_enc := '{"y":{"field":"x","type":"nominal","sort":"-x"},"x":{"field":"y","type":"quantitative"},"text":{"field":"y","type":"quantitative","format":","},"color":{"value":${json_str(lcolor)}}}'
 	text_layer := '{"mark":${text_mark},"encoding":${text_enc}}'
-	return '{${header},"layer":[${bar_layer},${text_layer}],${vl_config(c.config)}}'
+	return '{${header}${zoom},"layer":[${bar_layer},${text_layer}],${vl_config(c.config)}}'
 }
 
 fn render_line(c Chart) string {
 	if c.series.len == 0 { return '{}' }
 	data := series_to_xy_data(c.series)
 	multi := c.series.len > 1
+	legend := if c.config.direct_labels { 'null' } else { vl_legend(c.config.legend) }
 	color_enc := if multi {
-		'"color":{"field":"s","type":"nominal","legend":${vl_legend(c.config.legend)},"scale":{"range":${vl_color_range(c.config.colors)}}}'
+		'"color":{"field":"s","type":"nominal","legend":${legend},"scale":{"range":${vl_color_range(c.config.colors)}}}'
 	} else {
 		col := if c.series[0].color != '' { c.series[0].color } else { primary_color(c.config.colors) }
 		'"color":{"value":${json_str(col)}}'
 	}
 	x_title := if c.config.x_axis.name != '' { c.config.x_axis.name } else { '' }
 	y_title := if c.config.y_axis.name != '' { c.config.y_axis.name } else { '' }
-	enc := '{"x":{"field":"x","type":"nominal","title":${json_str(x_title)}},"y":{"field":"y","type":"quantitative","title":${json_str(y_title)}},${color_enc}}'
+	y_fmt := vl_fmt_axis(c.config.y_axis)
+	enc := '{"x":{"field":"x","type":"nominal","title":${json_str(x_title)}},"y":{"field":"y","type":"quantitative","title":${json_str(y_title)}${y_fmt}},${color_enc}}'
 	header := '"\$schema":${json_str(vl_schema)},"title":${vl_title(c.config)},"width":${c.config.width},"height":${c.config.height},"data":{"values":${data}}'
 	base := '{"mark":{"type":"line","point":true,"tooltip":true},"encoding":${enc}}'
 	mut layers := [base]
@@ -358,25 +377,41 @@ fn render_line(c Chart) string {
 		layers << '{"mark":${text_mark},"encoding":${text_enc}}'
 	}
 	layers << overlay_layers(c, 'x', 'nominal')
-	if layers.len == 1 {
-		return '{${header},"mark":{"type":"line","point":true,"tooltip":true},"encoding":${enc},${vl_config(c.config)}}'
+	if c.config.direct_labels && multi {
+		palette := color_palette(c.config.colors)
+		for i, s in c.series {
+			if s.labels.len == 0 { continue }
+			col := if s.color != '' { s.color } else { palette[i % palette.len] }
+			last_lbl := s.labels[s.labels.len - 1]
+			f1 := '"filter":{"field":"x","equal":${json_str(last_lbl)}}'
+			f2 := '"filter":{"field":"s","equal":${json_str(s.name)}}'
+			tm := '{"type":"text","align":"left","dx":6,"baseline":"middle","fontSize":11}'
+			te := '{"x":{"field":"x","type":"nominal"},"y":{"field":"y","type":"quantitative"},"text":{"value":${json_str(s.name)}},"color":{"value":${json_str(col)}}}'
+			layers << '{"transform":[{${f1}},{${f2}}],"mark":${tm},"encoding":${te}}'
+		}
 	}
-	return '{${header},"layer":[${layers.join(',')}],${vl_config(c.config)}}'
+	zoom := vl_zoom_params(c.config)
+	if layers.len == 1 {
+		return '{${header}${zoom},"mark":{"type":"line","point":true,"tooltip":true},"encoding":${enc},${vl_config(c.config)}}'
+	}
+	return '{${header}${zoom},"layer":[${layers.join(',')}],${vl_config(c.config)}}'
 }
 
 fn render_area(c Chart) string {
 	if c.series.len == 0 { return '{}' }
 	data := series_to_xy_data(c.series)
 	multi := c.series.len > 1
+	legend := if c.config.direct_labels { 'null' } else { vl_legend(c.config.legend) }
 	color_enc := if multi {
-		'"color":{"field":"s","type":"nominal","legend":${vl_legend(c.config.legend)},"scale":{"range":${vl_color_range(c.config.colors)}}}'
+		'"color":{"field":"s","type":"nominal","legend":${legend},"scale":{"range":${vl_color_range(c.config.colors)}}}'
 	} else {
 		col := if c.series[0].color != '' { c.series[0].color } else { primary_color(c.config.colors) }
 		'"color":{"value":${json_str(col)}}'
 	}
 	x_title := if c.config.x_axis.name != '' { c.config.x_axis.name } else { '' }
 	y_title := if c.config.y_axis.name != '' { c.config.y_axis.name } else { '' }
-	enc := '{"x":{"field":"x","type":"nominal","title":${json_str(x_title)}},"y":{"field":"y","type":"quantitative","title":${json_str(y_title)}},${color_enc}}'
+	y_fmt := vl_fmt_axis(c.config.y_axis)
+	enc := '{"x":{"field":"x","type":"nominal","title":${json_str(x_title)}},"y":{"field":"y","type":"quantitative","title":${json_str(y_title)}${y_fmt}},${color_enc}}'
 	header := '"\$schema":${json_str(vl_schema)},"title":${vl_title(c.config)},"width":${c.config.width},"height":${c.config.height},"data":{"values":${data}}'
 	base := '{"mark":{"type":"area","line":true,"point":false,"tooltip":true,"opacity":0.4},"encoding":${enc}}'
 	mut layers := [base]
@@ -388,10 +423,24 @@ fn render_area(c Chart) string {
 		layers << '{"mark":${text_mark},"encoding":${text_enc}}'
 	}
 	layers << overlay_layers(c, 'x', 'nominal')
-	if layers.len == 1 {
-		return '{${header},"mark":{"type":"area","line":true,"point":false,"tooltip":true,"opacity":0.6},"encoding":${enc},${vl_config(c.config)}}'
+	if c.config.direct_labels && multi {
+		palette := color_palette(c.config.colors)
+		for i, s in c.series {
+			if s.labels.len == 0 { continue }
+			col := if s.color != '' { s.color } else { palette[i % palette.len] }
+			last_lbl := s.labels[s.labels.len - 1]
+			f1 := '"filter":{"field":"x","equal":${json_str(last_lbl)}}'
+			f2 := '"filter":{"field":"s","equal":${json_str(s.name)}}'
+			tm := '{"type":"text","align":"left","dx":6,"baseline":"middle","fontSize":11}'
+			te := '{"x":{"field":"x","type":"nominal"},"y":{"field":"y","type":"quantitative"},"text":{"value":${json_str(s.name)}},"color":{"value":${json_str(col)}}}'
+			layers << '{"transform":[{${f1}},{${f2}}],"mark":${tm},"encoding":${te}}'
+		}
 	}
-	return '{${header},"layer":[${layers.join(',')}],${vl_config(c.config)}}'
+	zoom := vl_zoom_params(c.config)
+	if layers.len == 1 {
+		return '{${header}${zoom},"mark":{"type":"area","line":true,"point":false,"tooltip":true,"opacity":0.6},"encoding":${enc},${vl_config(c.config)}}'
+	}
+	return '{${header}${zoom},"layer":[${layers.join(',')}],${vl_config(c.config)}}'
 }
 
 fn render_scatter(c Chart) string {
@@ -404,9 +453,11 @@ fn render_scatter(c Chart) string {
 		col := if c.series[0].color != '' { c.series[0].color } else { primary_color(c.config.colors) }
 		'"color":{"value":${json_str(col)}}'
 	}
-	x_title := if c.config.x_axis.name != '' { c.config.x_axis.name } else { 'x' }
-	y_title := if c.config.y_axis.name != '' { c.config.y_axis.name } else { 'y' }
-	enc := '{"x":{"field":"x","type":"quantitative","title":${json_str(x_title)}},"y":{"field":"y","type":"quantitative","title":${json_str(y_title)}},${color_enc}}'
+	x_title := c.config.x_axis.name
+	y_title := c.config.y_axis.name
+	x_fmt := vl_fmt_axis(c.config.x_axis)
+	y_fmt := vl_fmt_axis(c.config.y_axis)
+	enc := '{"x":{"field":"x","type":"quantitative","title":${json_str(x_title)}${x_fmt}},"y":{"field":"y","type":"quantitative","title":${json_str(y_title)}${y_fmt}},${color_enc}}'
 	header := '"\$schema":${json_str(vl_schema)},"title":${vl_title(c.config)},"width":${c.config.width},"height":${c.config.height},"data":{"values":${data}}'
 	base := '{"mark":{"type":"point","filled":true,"size":55,"opacity":0.75,"tooltip":true},"encoding":${enc}}'
 	mut layers := [base]
@@ -418,8 +469,15 @@ fn render_scatter(c Chart) string {
 		layers << '{"mark":${text_mark},"encoding":${text_enc}}'
 	}
 	layers << overlay_layers(c, 'x', 'quantitative')
+	zoom := vl_zoom_params(c.config)
 	if layers.len == 1 {
-		return '{${header},"mark":{"type":"point","filled":true,"size":55,"opacity":0.75,"tooltip":true},"encoding":${enc},${vl_config(c.config)}}'
+		return '{${header}${zoom},"mark":{"type":"point","filled":true,"size":55,"opacity":0.75,"tooltip":true},"encoding":${enc},${vl_config(c.config)}}'
+	}
+	// In a layered spec, bind:"scales" params must live inside the base unit-spec
+	// layer, not at the compound view level. Vega-Lite cannot project a selection
+	// onto x/y channels from a compound spec, so top-level params silently break zoom.
+	if c.config.zoom {
+		layers[0] = '{"params":[{"name":"grid","select":"interval","bind":"scales"}],"mark":{"type":"point","filled":true,"size":55,"opacity":0.75,"tooltip":true},"encoding":${enc}}'
 	}
 	return '{${header},"layer":[${layers.join(',')}],${vl_config(c.config)}}'
 }
@@ -429,8 +487,9 @@ fn render_pie(c Chart) string {
 	data := series_to_pie_data(c.series)
 	enc := '{"theta":{"field":"y","type":"quantitative"},"color":{"field":"x","type":"nominal","legend":${vl_legend(c.config.legend)},"scale":{"range":${vl_color_range(c.config.colors)}}}}'
 	header := '"\$schema":${json_str(vl_schema)},"title":${vl_title(c.config)},"width":${c.config.width},"height":${c.config.height},"data":{"values":${data}}'
+	zoom := vl_zoom_params(c.config)
 	if !c.config.labels.show {
-		return '{${header},"mark":{"type":"arc","tooltip":true},"encoding":${enc},${vl_config(c.config)}}'
+		return '{${header}${zoom},"mark":{"type":"arc","tooltip":true},"encoding":${enc},${vl_config(c.config)}}'
 	}
 	lsize := label_size(c.config.labels)
 	inside := label_inside(c.config.labels, true)
@@ -442,7 +501,7 @@ fn render_pie(c Chart) string {
 	text_transforms := '[{"window":[{"op":"sum","field":"y","as":"__total"}],"frame":[null,null]},{"calculate":${json_str(calc_expr)},"as":"__pct"}]'
 	text_enc := '{"theta":{"field":"y","type":"quantitative","stack":true},"text":{"field":"__pct","type":"nominal"},"color":{"value":${json_str(lcolor)}}}'
 	text_layer := '{"transform":${text_transforms},"mark":${text_mark},"encoding":${text_enc}}'
-	return '{${header},"layer":[${pie_layer},${text_layer}],${vl_config(c.config)}}'
+	return '{${header}${zoom},"layer":[${pie_layer},${text_layer}],${vl_config(c.config)}}'
 }
 
 fn render_histogram(c Chart) string {
@@ -450,10 +509,12 @@ fn render_histogram(c Chart) string {
 	data := series_to_hist_data(c.series)
 	col := primary_color(c.config.colors)
 	step := '"bin":{"maxbins":${c.config.bins}}'
-	enc := '{"x":{"field":"v","type":"quantitative",${step},"title":"Value"},"y":{"aggregate":"count","type":"quantitative","title":"Count"}}'
+	y_fmt := vl_fmt_axis(c.config.y_axis)
+	enc := '{"x":{"field":"v","type":"quantitative",${step},"title":"Value"},"y":{"aggregate":"count","type":"quantitative","title":"Count"${y_fmt}}}'
 	header := '"\$schema":${json_str(vl_schema)},"title":${vl_title(c.config)},"width":${c.config.width},"height":${c.config.height},"data":{"values":${data}}'
+	zoom := vl_zoom_params(c.config)
 	if !c.config.labels.show {
-		return '{${header},"mark":{"type":"bar","tooltip":true,"color":${json_str(col)}},"encoding":${enc},${vl_config(c.config)}}'
+		return '{${header}${zoom},"mark":{"type":"bar","tooltip":true,"color":${json_str(col)}},"encoding":${enc},${vl_config(c.config)}}'
 	}
 	lsize := label_size(c.config.labels)
 	lcolor := label_color(c.config, false)
@@ -461,7 +522,7 @@ fn render_histogram(c Chart) string {
 	text_mark := '{"type":"text","dy":-6,"align":"center","baseline":"bottom","fontSize":${lsize}}'
 	text_enc := '{"x":{"field":"v","type":"quantitative",${step}},"y":{"aggregate":"count","type":"quantitative"},"text":{"aggregate":"count","type":"quantitative"},"color":{"value":${json_str(lcolor)}}}'
 	text_layer := '{"mark":${text_mark},"encoding":${text_enc}}'
-	return '{${header},"layer":[${bar_layer},${text_layer}],${vl_config(c.config)}}'
+	return '{${header}${zoom},"layer":[${bar_layer},${text_layer}],${vl_config(c.config)}}'
 }
 
 fn render_heatmap(c Chart) string {
@@ -477,8 +538,9 @@ fn render_heatmap(c Chart) string {
 	y_title := if c.config.y_axis.name != '' { c.config.y_axis.name } else { '' }
 	enc := '{"x":{"field":"x","type":"nominal","title":${json_str(x_title)}},"y":{"field":"y","type":"nominal","title":${json_str(y_title)}},"color":{"field":"v","type":"quantitative","scale":{"range":[${json_str(lo)},${json_str(hi)}]},"legend":{"title":"Value"}}}'
 	header := '"\$schema":${json_str(vl_schema)},"title":${vl_title(c.config)},"width":${c.config.width},"height":${c.config.height},"data":{"values":${data}}'
+	zoom := vl_zoom_params(c.config)
 	if !c.config.labels.show {
-		return '{${header},"mark":{"type":"rect","tooltip":true},"encoding":${enc},${vl_config(c.config)}}'
+		return '{${header}${zoom},"mark":{"type":"rect","tooltip":true},"encoding":${enc},${vl_config(c.config)}}'
 	}
 	lsize := label_size(c.config.labels)
 	lcolor := label_color(c.config, true)
@@ -486,7 +548,7 @@ fn render_heatmap(c Chart) string {
 	text_mark := '{"type":"text","align":"center","baseline":"middle","fontSize":${lsize}}'
 	text_enc := '{"x":{"field":"x","type":"nominal"},"y":{"field":"y","type":"nominal"},"text":{"field":"v","type":"quantitative","format":".2f"},"color":{"value":${json_str(lcolor)}}}'
 	text_layer := '{"mark":${text_mark},"encoding":${text_enc}}'
-	return '{${header},"layer":[${rect_layer},${text_layer}],${vl_config(c.config)}}'
+	return '{${header}${zoom},"layer":[${rect_layer},${text_layer}],${vl_config(c.config)}}'
 }
 
 fn render_bar_errorbar(c Chart) string {
@@ -494,13 +556,14 @@ fn render_bar_errorbar(c Chart) string {
 	data := series_to_errorbar_data(c.series)
 	x_title := if c.config.x_axis.name != '' { c.config.x_axis.name } else { '' }
 	y_title := if c.config.y_axis.name != '' { c.config.y_axis.name } else { '' }
+	y_fmt := vl_fmt_axis(c.config.y_axis)
 	// Build per-series layers: points first, then errorbars (so errorbars render on top)
 	palette := color_palette(c.config.colors)
 	mut all_layers := []string{}
 	for i, s in c.series {
 		col := if s.color != '' { s.color } else { palette[i % palette.len] }
 		filter := '"filter":{"field":"s","equal":${json_str(s.name)}}'
-		all_layers << '{"mark":{"type":"point","filled":true,"size":80},"transform":[{${filter}}],"encoding":{"x":{"field":"x","type":"nominal","title":${json_str(x_title)},"axis":{"labelAngle":0}},"y":{"field":"y","type":"quantitative","title":${json_str(y_title)}},"color":{"value":${json_str(col)}}}}'
+		all_layers << '{"mark":{"type":"point","filled":true,"size":80},"transform":[{${filter}}],"encoding":{"x":{"field":"x","type":"nominal","title":${json_str(x_title)},"axis":{"labelAngle":0}},"y":{"field":"y","type":"quantitative","title":${json_str(y_title)}${y_fmt}},"color":{"value":${json_str(col)}}}}'
 		all_layers << '{"mark":{"type":"errorbar"},"transform":[{${filter}}],"encoding":{"x":{"field":"x","type":"nominal"},"y":{"field":"y_lower","type":"quantitative","title":${json_str(y_title)}},"y2":{"field":"y_upper"},"color":{"value":${json_str(col)}}}}'
 	}
 	if c.config.labels.show {
@@ -513,7 +576,8 @@ fn render_bar_errorbar(c Chart) string {
 			all_layers << '{"mark":{"type":"text","dy":-12,"align":"center","baseline":"bottom","fontSize":${lsize}},"transform":[{${filter}}],"encoding":{"x":{"field":"x","type":"nominal"},"y":{"field":"y","type":"quantitative"},"text":{"field":"y","type":"quantitative","format":","},"color":{"value":${json_str(lcolor)}}}}'
 		}
 	}
-	return '{"\$schema":${json_str(vl_schema)},"title":${vl_title(c.config)},"width":${c.config.width},"height":${c.config.height},"data":{"values":${data}},"layer":[${all_layers.join(',')}],${vl_config(c.config)}}'
+	zoom := vl_zoom_params(c.config)
+	return '{"\$schema":${json_str(vl_schema)},"title":${vl_title(c.config)},"width":${c.config.width},"height":${c.config.height},"data":{"values":${data}},"layer":[${all_layers.join(',')}]${zoom},${vl_config(c.config)}}'
 }
 
 fn render_rolling_mean(c Chart) string {
@@ -521,13 +585,14 @@ fn render_rolling_mean(c Chart) string {
 	data := series_to_xy_data(c.series)
 	x_title := if c.config.x_axis.name != '' { c.config.x_axis.name } else { '' }
 	y_title := if c.config.y_axis.name != '' { c.config.y_axis.name } else { '' }
+	y_fmt := vl_fmt_axis(c.config.y_axis)
 	win := c.config.rolling_window
 	half := win / 2
 	trend_col := primary_color(c.config.colors)
 	raw_col := if c.series[0].color != '' { c.series[0].color } else { '#aaaaaa' }
 	transform := '"transform":[{"window":[{"op":"mean","field":"y","as":"rolling_mean"}],"frame":[${-half},${half}]}]'
-	raw_layer := '{"mark":{"type":"point","opacity":0.3,"size":30},"encoding":{"x":{"field":"x","type":"nominal","title":${json_str(x_title)}},"y":{"field":"y","type":"quantitative","title":${json_str(y_title)}},"color":{"value":${json_str(raw_col)}}}}'
-	mean_layer := '{${transform},"mark":{"type":"line","size":2},"encoding":{"x":{"field":"x","type":"nominal"},"y":{"field":"rolling_mean","type":"quantitative"},"color":{"value":${json_str(trend_col)}}}}'
+	raw_layer := '{"mark":{"type":"point","opacity":0.3,"size":30},"encoding":{"x":{"field":"x","type":"nominal","title":${json_str(x_title)}},"y":{"field":"y","type":"quantitative","title":${json_str(y_title)}${y_fmt}},"color":{"value":${json_str(raw_col)}}}}'
+	mean_layer := '{${transform},"mark":{"type":"line","size":2},"encoding":{"x":{"field":"x","type":"nominal"},"y":{"field":"rolling_mean","type":"quantitative"${y_fmt}},"color":{"value":${json_str(trend_col)}}}}'
 	mut rm_layers := [raw_layer, mean_layer]
 	if c.config.labels.show {
 		lsize := label_size(c.config.labels)
@@ -536,7 +601,8 @@ fn render_rolling_mean(c Chart) string {
 		text_enc := '{"x":{"field":"x","type":"nominal"},"y":{"field":"rolling_mean","type":"quantitative"},"text":{"field":"rolling_mean","type":"quantitative","format":".1f"},"color":{"value":${json_str(lcolor)}}}'
 		rm_layers << '{${transform},"mark":${text_mark},"encoding":${text_enc}}'
 	}
-	return '{"\$schema":${json_str(vl_schema)},"title":${vl_title(c.config)},"width":${c.config.width},"height":${c.config.height},"data":{"values":${data}},"layer":[${rm_layers.join(',')}],${vl_config(c.config)}}'
+	zoom := vl_zoom_params(c.config)
+	return '{"\$schema":${json_str(vl_schema)},"title":${vl_title(c.config)},"width":${c.config.width},"height":${c.config.height},"data":{"values":${data}},"layer":[${rm_layers.join(',')}]${zoom},${vl_config(c.config)}}'
 }
 
 fn render_line_ci(c Chart) string {
@@ -544,13 +610,14 @@ fn render_line_ci(c Chart) string {
 	data := series_to_errorbar_data(c.series)
 	x_title := if c.config.x_axis.name != '' { c.config.x_axis.name } else { '' }
 	y_title := if c.config.y_axis.name != '' { c.config.y_axis.name } else { '' }
+	y_fmt := vl_fmt_axis(c.config.y_axis)
 	palette := color_palette(c.config.colors)
 	mut layers := []string{}
 	for i, s in c.series {
 		col := if s.color != '' { s.color } else { palette[i % palette.len] }
 		filter := '"filter":{"field":"s","equal":${json_str(s.name)}}'
-		band := '{"mark":{"type":"errorband","opacity":0.2},"transform":[{${filter}}],"encoding":{"x":{"field":"x","type":"nominal","title":${json_str(x_title)}},"y":{"field":"y_lower","type":"quantitative","title":${json_str(y_title)}},"y2":{"field":"y_upper"},"color":{"value":${json_str(col)}}}}'
-		line := '{"mark":{"type":"line","point":true},"transform":[{${filter}}],"encoding":{"x":{"field":"x","type":"nominal"},"y":{"field":"y","type":"quantitative"},"color":{"value":${json_str(col)}}}}'
+		band := '{"mark":{"type":"errorband","opacity":0.2},"transform":[{${filter}}],"encoding":{"x":{"field":"x","type":"nominal","title":${json_str(x_title)}},"y":{"field":"y_lower","type":"quantitative","title":${json_str(y_title)}${y_fmt}},"y2":{"field":"y_upper"},"color":{"value":${json_str(col)}}}}'
+		line := '{"mark":{"type":"line","point":true},"transform":[{${filter}}],"encoding":{"x":{"field":"x","type":"nominal"},"y":{"field":"y","type":"quantitative"${y_fmt}},"color":{"value":${json_str(col)}}}}'
 		layers << band
 		layers << line
 	}
@@ -564,7 +631,8 @@ fn render_line_ci(c Chart) string {
 			layers << '{"mark":{"type":"text","dy":-10,"align":"center","baseline":"bottom","fontSize":${lsize}},"transform":[{${filter}}],"encoding":{"x":{"field":"x","type":"nominal"},"y":{"field":"y","type":"quantitative"},"text":{"field":"y","type":"quantitative","format":".1f"},"color":{"value":${json_str(lcolor)}}}}'
 		}
 	}
-	return '{"\$schema":${json_str(vl_schema)},"title":${vl_title(c.config)},"width":${c.config.width},"height":${c.config.height},"data":{"values":${data}},"layer":[${layers.join(',')}],${vl_config(c.config)}}'
+	zoom := vl_zoom_params(c.config)
+	return '{"\$schema":${json_str(vl_schema)},"title":${vl_title(c.config)},"width":${c.config.width},"height":${c.config.height},"data":{"values":${data}},"layer":[${layers.join(',')}]${zoom},${vl_config(c.config)}}'
 }
 
 fn render_waterfall(c Chart) string {
@@ -593,7 +661,8 @@ fn render_waterfall(c Chart) string {
 	// Text layer: show amounts on bars (always visible; LabelConfig tunes style)
 	wl_size := if c.config.labels.show { label_size(c.config.labels) } else { 11 }
 	text_layer := '{"mark":{"type":"text","dy":0,"align":"center","baseline":"middle","fontSize":${wl_size}},"encoding":{"x":{"field":"x","type":"ordinal","sort":null},"y":{"field":"text_mid","type":"quantitative"},"text":{"field":"display_val","type":"quantitative","format":".0f"},"color":{"value":"#ffffff"}}}'
-	return '{"\$schema":${json_str(vl_schema)},"title":${vl_title(c.config)},"width":${c.config.width},"height":${c.config.height},"data":{"values":${data}},"transform":${transforms},"layer":[${bar_layer},${rule_layer},${text_layer}],${vl_config(c.config)}}'
+	zoom := vl_zoom_params(c.config)
+	return '{"\$schema":${json_str(vl_schema)},"title":${vl_title(c.config)},"width":${c.config.width},"height":${c.config.height},"data":{"values":${data}},"transform":${transforms},"layer":[${bar_layer},${rule_layer},${text_layer}]${zoom},${vl_config(c.config)}}'
 }
 
 fn render_funnel(c Chart) string {
@@ -616,8 +685,9 @@ fn render_funnel(c Chart) string {
 	order_enc := '"order":{"field":"o","type":"quantitative"}'
 	bar_enc := '{"x":{"field":"x","type":"ordinal","title":${json_str(x_title)},"sort":null,"axis":{"labelAngle":0}},"y":{"field":"y","type":"quantitative","title":${json_str(y_title)},"stack":"zero"},${color_enc},${opacity_enc},${order_enc}}'
 	header := '"\$schema":${json_str(vl_schema)},"title":${vl_title(c.config)},"width":${c.config.width},"height":${c.config.height},"data":{"values":${data}}'
+	zoom := vl_zoom_params(c.config)
 	if !c.config.labels.show {
-		return '{${header},"mark":{"type":"bar","tooltip":true},"encoding":${bar_enc},${vl_config(c.config)}}'
+		return '{${header}${zoom},"mark":{"type":"bar","tooltip":true},"encoding":${bar_enc},${vl_config(c.config)}}'
 	}
 	lsize := label_size(c.config.labels)
 	lcolor := label_color(c.config, true)
@@ -634,7 +704,7 @@ fn render_funnel(c Chart) string {
 	text_mark := '{"type":"text","align":"center","baseline":"middle","fontSize":${lsize}}'
 	text_enc := '{"x":{"field":"x","type":"ordinal","sort":null},"y":{"field":"__ymid","type":"quantitative"},"text":{"field":"__label","type":"nominal"},"color":{"value":${json_str(lcolor)}}}'
 	text_layer := '{"transform":${transforms},"mark":${text_mark},"encoding":${text_enc}}'
-	return '{${header},"layer":[${bar_layer},${text_layer}],${vl_config(c.config)}}'
+	return '{${header}${zoom},"layer":[${bar_layer},${text_layer}],${vl_config(c.config)}}'
 }
 
 // ─── Box plot ──────────────────────────────────────────────────────────────────
@@ -656,6 +726,7 @@ fn render_box_plot(c Chart) string {
 	data := series_to_boxplot_data(c.series)
 	x_title := if c.config.x_axis.name != '' { c.config.x_axis.name } else { '' }
 	y_title := if c.config.y_axis.name != '' { c.config.y_axis.name } else { '' }
+	y_fmt := vl_fmt_axis(c.config.y_axis)
 	multi := c.series.len > 1
 	color_enc := if multi {
 		'"color":{"field":"s","type":"nominal","legend":${vl_legend(c.config.legend)},"scale":{"range":${vl_color_range(c.config.colors)}}}'
@@ -663,7 +734,8 @@ fn render_box_plot(c Chart) string {
 		col := primary_color(c.config.colors)
 		'"color":{"value":${json_str(col)}}'
 	}
-	return '{"\$schema":${json_str(vl_schema)},"title":${vl_title(c.config)},"width":${c.config.width},"height":${c.config.height},"data":{"values":${data}},"mark":{"type":"boxplot","extent":"min-max","tooltip":true},"encoding":{"x":{"field":"x","type":"nominal","title":${json_str(x_title)}},"y":{"field":"y","type":"quantitative","title":${json_str(y_title)}},${color_enc}},${vl_config(c.config)}}'
+	zoom := vl_zoom_params(c.config)
+	return '{"\$schema":${json_str(vl_schema)},"title":${vl_title(c.config)},"width":${c.config.width},"height":${c.config.height},"data":{"values":${data}}${zoom},"mark":{"type":"boxplot","extent":"min-max","tooltip":true},"encoding":{"x":{"field":"x","type":"nominal","title":${json_str(x_title)}},"y":{"field":"y","type":"quantitative","title":${json_str(y_title)}${y_fmt}},${color_enc}},${vl_config(c.config)}}'
 }
 
 // ─── Overlay helpers ───────────────────────────────────────────────────────────
@@ -674,6 +746,42 @@ fn vl_dash(d DashStyle) string {
 		.dashed { '[6,3]' }
 		.dotted { '[2,3]' }
 	}
+}
+
+// ols_trend_nominal computes one OLS trend line per series and returns layer JSON strings.
+// Used when x is nominal — Vega-Lite's regression transform requires a quantitative x field.
+fn ols_trend_nominal(c Chart, x_field string, color_json string) []string {
+	mut trend_layers := []string{}
+	for s in c.series {
+		n := s.data.len
+		n_labels := if s.labels.len < n { s.labels.len } else { n }
+		if n_labels < 2 { continue }
+		nf := f64(n_labels)
+		mut sum_x := 0.0
+		mut sum_y := 0.0
+		mut sum_xx := 0.0
+		mut sum_xy := 0.0
+		for i in 0..n_labels {
+			xi := f64(i)
+			yi := s.data[i]
+			sum_x += xi
+			sum_y += yi
+			sum_xx += xi * xi
+			sum_xy += xi * yi
+		}
+		denom := nf * sum_xx - sum_x * sum_x
+		if denom == 0.0 { continue }
+		slope := (nf * sum_xy - sum_x * sum_y) / denom
+		intercept := (sum_y - slope * sum_x) / nf
+		mut rows := []string{}
+		for i in 0..n_labels {
+			pred := intercept + slope * f64(i)
+			rows << '{"${x_field}":${json_str(s.labels[i])},"__trend":${f64_to_str(pred)}}'
+		}
+		data := '[${rows.join(',')}]'
+		trend_layers << '{"data":{"values":${data}},"mark":{"type":"line","color":${color_json},"strokeDash":[4,4],"size":2},"encoding":{"x":{"field":"${x_field}","type":"nominal"},"y":{"field":"__trend","type":"quantitative"}}}'
+	}
+	return trend_layers
 }
 
 // overlay_layers returns Vega-Lite layer JSON strings for any overlays set on c.
@@ -726,6 +834,39 @@ fn overlay_layers(c Chart, x_field string, x_type string) []string {
 		eb_data := '[${eb_rows.join(',')}]'
 		enc := '{"x":{"field":"${x_field}","type":"${x_type}"},"y":{"field":"__lower","type":"quantitative"},"y2":{"field":"__upper"}}'
 		layers << '{"data":{"values":${eb_data}},"mark":{"type":"errorbar","ticks":true},"encoding":${enc}}'
+	}
+
+	// Reference lines — horizontal (y-axis) or vertical (x-axis) rules with optional labels
+	for rl in c.config.ref_lines {
+		col := json_str(rl.color)
+		dash := vl_dash(rl.dash)
+		if rl.axis == 'x' {
+			layers << '{"mark":{"type":"rule","color":${col},"strokeDash":${dash}},"encoding":{"x":{"datum":${f64_to_str(rl.value)},"type":"quantitative"}}}'
+			if rl.label != '' {
+				layers << '{"mark":{"type":"text","align":"left","dx":4,"dy":-8,"fontSize":11,"color":${col}},"encoding":{"x":{"datum":${f64_to_str(rl.value)},"type":"quantitative"},"y":{"aggregate":"max","field":"y","type":"quantitative"},"text":{"value":${json_str(rl.label)}}}}'
+			}
+		} else {
+			layers << '{"mark":{"type":"rule","color":${col},"strokeDash":${dash}},"encoding":{"y":{"datum":${f64_to_str(rl.value)},"type":"quantitative"}}}'
+			if rl.label != '' {
+				layers << '{"mark":{"type":"text","align":"right","dx":-4,"dy":-6,"fontSize":11,"color":${col}},"encoding":{"x":{"aggregate":"max","field":"${x_field}","type":"${x_type}"},"y":{"datum":${f64_to_str(rl.value)},"type":"quantitative"},"text":{"value":${json_str(rl.label)}}}}'
+			}
+		}
+	}
+
+	// Annotations — text labels positioned at fixed (x, y) data coordinates
+	for ann in c.config.annotations {
+		col := json_str(ann.color)
+		layers << '{"mark":{"type":"text","align":"center","baseline":"bottom","fontSize":${ann.size},"color":${col}},"encoding":{"x":{"datum":${f64_to_str(ann.x)},"type":"quantitative"},"y":{"datum":${f64_to_str(ann.y)},"type":"quantitative"},"text":{"value":${json_str(ann.text)}}}}'
+	}
+
+	// Trend line (least-squares regression)
+	if c.config.trend_line {
+		col := json_str(c.config.trend_color)
+		if x_type == 'quantitative' {
+			layers << '{"transform":[{"regression":"y","on":"x"}],"mark":{"type":"line","color":${col},"strokeDash":[4,4],"size":2},"encoding":{"x":{"field":"x","type":"quantitative"},"y":{"field":"y","type":"quantitative"}}}'
+		} else {
+			layers << ols_trend_nominal(c, x_field, col)
+		}
 	}
 
 	return layers

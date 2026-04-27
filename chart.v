@@ -60,6 +60,8 @@ pub:
 	// Trend line (least-squares regression) for line/scatter
 	trend_line  bool
 	trend_color string = 'rgba(220,50,50,0.7)'
+	// Direct labels: show series name at the last point of each line, suppress the legend
+	direct_labels bool
 	// Rolling average window size (number of data points), used by rolling_mean charts
 	rolling_window int = 30
 	// Data labels shown on bars, points, slices, and cells
