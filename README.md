@@ -19,6 +19,26 @@ The output is a single self-contained HTML file with the Vega-Lite runtime embed
 
 ---
 
+## Why cuiqcharts?
+
+Most charting libraries make you choose between power and simplicity. Low-level libraries give you full control but require you to write JSON specs by hand, manage JavaScript toolchains, and wire up a runtime. High-level wrappers are easier but lock you into a narrow set of chart types and styling options.
+
+cuiqcharts takes a different approach: it gives you a **typed V API** that compiles directly to Vega-Lite — one of the most capable declarative visualization grammars available — without requiring you to know anything about Vega-Lite or JavaScript.
+
+**What you get:**
+
+- **14 chart types** out of the box, from basic bars to waterfall bridges and SPC control charts
+- **Publication-quality defaults** — eight carefully chosen color palettes sourced from data journalism (LA Times), academia (Paul Tol, Okabe-Ito), and industry (Tableau, ColorBrewer)
+- **Interactive by default** — every chart supports zoom/pan, tooltips, and hover interactions with a single flag
+- **Analytical overlays** built in: OLS regression, rolling averages, confidence bands, control limits, reference lines, and asymmetric error bars
+- **Zero runtime dependencies** — the first `save()` call caches the Vega-Lite runtime locally; after that, charts open fully offline
+- **Dashboards** — compose multiple charts into a responsive grid layout in a single HTML file
+- **No build step, no npm, no bundler** — if you can run V, you can generate charts
+
+If you need to produce clear, data-dense charts from a V program — scripts, CLI tools, reports, notebooks — cuiqcharts keeps the full power of Vega-Lite within reach without the accidental complexity.
+
+---
+
 ## Installation
 
 ```sh
