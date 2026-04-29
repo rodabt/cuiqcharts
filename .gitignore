@@ -1,6 +1,7 @@
 .claude/
 .vscode/
 docs/
+CLAUDE.md
 TODO.md
 examples/**/*.html
 OPPORTUNITIES.md

@@ -149,6 +149,21 @@ c.add_series(cuiqcharts.named_series('Costs', ['Q1','Q2','Q3','Q4'], [ 80.0, 90.
 c.save('line_direct.html')!
 ```
 
+#### Stroke and interpolation
+
+Set a chart-wide line interpolation method with `interpolate` on `ChartConfig`:
+
+```v
+mut c := cuiqcharts.line(
+    title:       'Smooth Trend'
+    interpolate: 'monotone'   // smooth without overshooting data points
+)
+```
+
+Available values: `"linear"` (default), `"monotone"`, `"step"`, `"step-before"`, `"step-after"`, `"basis"`, `"cardinal"`, `"catmull-rom"`.
+
+Per-series stroke width, dash pattern, and interpolation are set on the `Series` struct directly — see [Per-series styling](#per-series-styling).
+
 ### Area chart
 
 Like line but filled. Good for cumulative values.
@@ -487,19 +502,57 @@ mut c := cuiqcharts.bar(
 
 ## Per-series styling
 
-Override color, line style, and marker per series:
+All visual properties are set directly on the `Series` struct:
 
 ```v
 c.add_series(cuiqcharts.Series{
     name:        'Forecast'
     labels:      ['Q1', 'Q2', 'Q3', 'Q4']
     data:        [110.0, 125.0, 120.0, 145.0]
-    color:       '#9467bd'
-    dash_style:  .dashed
-    marker:      .diamond
+    color:       '#9467bd'      // hex color; empty = palette rotation
+    line_width:  2.5            // strokeWidth (default 2.0)
+    dash_style:  .dashed        // .solid | .dashed | .dotted
+    stroke_dash: [8, 4]         // raw Vega-Lite dash array; overrides dash_style when set
+    interpolate: 'monotone'     // per-series interpolation; overrides ChartConfig.interpolate
+    marker:      .diamond       // .circle | .rect | .triangle | .diamond | .pin | .arrow | .none
     marker_size: 8
     opacity:     0.8
 })
+```
+
+### Stroke width and dash pattern
+
+`line_width` maps to Vega-Lite's `strokeWidth`; `stroke_dash` takes a raw `[]int` array such as `[6, 4]` (6px dash, 4px gap). `stroke_dash` takes precedence over `dash_style` when both are set.
+
+For a multi-series chart, when the series have different `line_width` or `stroke_dash` values, cuiqcharts emits Vega-Lite `strokeWidth` and `strokeDash` encoding channels so each series keeps its own style while sharing a single layer.
+
+### Per-series interpolation
+
+Setting `Series.interpolate` on any series in a multi-series chart switches the renderer from a single shared layer to **one filtered layer per series**. This is necessary because Vega-Lite has no `interpolate` encoding channel.
+
+A transparent ghost layer is automatically added to carry the shared color scale and render the legend. If `direct_labels: true` is set, the ghost layer is omitted (the end-of-line text labels serve as the legend).
+
+```v
+mut c := cuiqcharts.line(
+    title:       'Mixed interpolation'
+    interpolate: 'linear'   // chart-level default; inherited by series without their own
+)
+c.add_series(cuiqcharts.Series{
+    name:        'Actuals'
+    labels:      ['Q1', 'Q2', 'Q3', 'Q4']
+    data:        [100.0, 120.0, 115.0, 140.0]
+    line_width:  2.5
+    interpolate: 'monotone'     // overrides chart default for this series
+})
+c.add_series(cuiqcharts.Series{
+    name:        'Forecast'
+    labels:      ['Q1', 'Q2', 'Q3', 'Q4']
+    data:        [105.0, 118.0, 130.0, 150.0]
+    line_width:  1.5
+    stroke_dash: [6, 3]
+    interpolate: 'step-after'   // different interpolation per series
+})
+c.save('mixed_interp.html')!
 ```
 
 ---
