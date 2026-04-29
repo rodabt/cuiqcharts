@@ -321,6 +321,117 @@ fn test_scatter_no_default_axis_titles() {
 
 // ─── Fix: Tableau palette capped at 7 colors ──────────────────────────────────
 
+fn test_line_stroke_width_single_series() {
+	mut c := line(title: 'Thick Line')
+	c.add_series(Series{
+		name:       'Revenue'
+		labels:     ['Jan', 'Feb', 'Mar']
+		data:       [100.0, 120.0, 90.0]
+		line_width: 4.0
+	})
+	json := c.to_json()
+	assert json.contains('"strokeWidth":4'), 'strokeWidth 4 missing'
+}
+
+fn test_line_stroke_dash_single_series() {
+	mut c := line(title: 'Dashed Line')
+	c.add_series(Series{
+		name:        'Revenue'
+		labels:      ['Jan', 'Feb', 'Mar']
+		data:        [100.0, 120.0, 90.0]
+		stroke_dash: [8, 4]
+	})
+	json := c.to_json()
+	assert json.contains('"strokeDash":[8,4]'), 'custom strokeDash [8,4] missing'
+}
+
+fn test_line_dash_style_single_series() {
+	mut c := line(title: 'Dashed Style')
+	c.add_series(Series{
+		name:       'Revenue'
+		labels:     ['Jan', 'Feb', 'Mar']
+		data:       [100.0, 120.0, 90.0]
+		dash_style: .dashed
+	})
+	json := c.to_json()
+	assert json.contains('[6,3]'), 'dashed dash pattern [6,3] missing'
+}
+
+fn test_line_interpolate() {
+	mut c := line(title: 'Smooth', interpolate: 'monotone')
+	c.add_series(named_series('D', ['Jan', 'Feb', 'Mar'], [1.0, 3.0, 2.0]))
+	json := c.to_json()
+	assert json.contains('"interpolate":"monotone"'), 'interpolate monotone missing'
+}
+
+fn test_per_series_interpolate_triggers_layers() {
+	mut c := line(title: 'Per-series Interp')
+	c.add_series(Series{ name: 'A', labels: ['Q1', 'Q2'], data: [1.0, 2.0], interpolate: 'monotone' })
+	c.add_series(Series{ name: 'B', labels: ['Q1', 'Q2'], data: [3.0, 4.0] })
+	json := c.to_json()
+	// Per-series layers use filter transforms
+	assert json.contains('"filter"'), 'per-series layers should use filter transforms'
+	assert json.contains('"interpolate":"monotone"'), 'monotone interpolate missing'
+}
+
+fn test_per_series_interpolate_fallback_to_config() {
+	// Series B has no Series.interpolate → should inherit config.interpolate
+	mut c := line(title: 'Fallback', interpolate: 'basis')
+	c.add_series(Series{ name: 'A', labels: ['Q1', 'Q2'], data: [1.0, 2.0], interpolate: 'step' })
+	c.add_series(Series{ name: 'B', labels: ['Q1', 'Q2'], data: [3.0, 4.0] })
+	json := c.to_json()
+	assert json.contains('"interpolate":"step"'), 'series A interpolate missing'
+	assert json.contains('"interpolate":"basis"'), 'series B should inherit config interpolate'
+}
+
+fn test_per_series_interpolate_ghost_layer_for_legend() {
+	mut c := line(title: 'Legend Ghost')
+	c.add_series(Series{ name: 'A', labels: ['Q1', 'Q2'], data: [1.0, 2.0], interpolate: 'monotone' })
+	c.add_series(Series{ name: 'B', labels: ['Q1', 'Q2'], data: [3.0, 4.0] })
+	json := c.to_json()
+	// Ghost layer has opacity:0
+	assert json.contains('"opacity":0'), 'ghost layer for legend missing'
+}
+
+fn test_per_series_interpolate_no_ghost_with_direct_labels() {
+	mut c := line(title: 'No Ghost', direct_labels: true)
+	c.add_series(Series{ name: 'A', labels: ['Q1', 'Q2'], data: [1.0, 2.0], interpolate: 'monotone' })
+	c.add_series(Series{ name: 'B', labels: ['Q1', 'Q2'], data: [3.0, 4.0] })
+	json := c.to_json()
+	// With direct_labels, ghost layer (opacity:0) is suppressed
+	assert !json.contains('"opacity":0'), 'ghost layer should not appear with direct_labels'
+}
+
+fn test_area_interpolate() {
+	mut c := area(title: 'Step Area', interpolate: 'step')
+	c.add_series(named_series('D', ['Jan', 'Feb', 'Mar'], [1.0, 3.0, 2.0]))
+	json := c.to_json()
+	assert json.contains('"interpolate":"step"'), 'interpolate step missing in area'
+}
+
+fn test_line_stroke_encoding_multi_series() {
+	mut c := line(title: 'Multi Stroke')
+	c.add_series(Series{
+		name:       'Sales'
+		labels:     ['Q1', 'Q2']
+		data:       [100.0, 120.0]
+		line_width: 3.0
+		dash_style: .solid
+	})
+	c.add_series(Series{
+		name:        'Costs'
+		labels:      ['Q1', 'Q2']
+		data:        [80.0, 90.0]
+		line_width:  1.5
+		stroke_dash: [4, 2]
+	})
+	json := c.to_json()
+	assert json.contains('"strokeWidth"'), 'strokeWidth encoding channel missing'
+	assert json.contains('"strokeDash"'), 'strokeDash encoding channel missing'
+	assert json.contains('3.0'), 'Sales lineWidth 3.0 missing from range'
+	assert json.contains('[4,2]'), 'Costs stroke_dash [4,2] missing from range'
+}
+
 fn test_tableau_capped_at_7_colors() {
 	// Multi-series triggers vl_color_range which embeds all palette colors in the spec
 	mut c := line(title: 'Tableau 7', colors: .tableau)

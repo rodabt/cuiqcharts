@@ -62,6 +62,9 @@ pub:
 	trend_color string = 'rgba(220,50,50,0.7)'
 	// Direct labels: show series name at the last point of each line, suppress the legend
 	direct_labels bool
+	// Line interpolation method: "linear" (default), "monotone", "step", "step-before",
+	// "step-after", "basis", "cardinal", "catmull-rom". Empty string = Vega-Lite default (linear).
+	interpolate string
 	// Rolling average window size (number of data points), used by rolling_mean charts
 	rolling_window int = 30
 	// Data labels shown on bars, points, slices, and cells

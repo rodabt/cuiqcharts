@@ -13,6 +13,8 @@ pub:
 	// Per-series styling overrides
 	color       string      // Hex color, e.g. '#FF0000'; empty = use palette rotation
 	dash_style  DashStyle   = .solid
+	stroke_dash []int       // Raw Vega-Lite strokeDash array, e.g. [6,4]; overrides dash_style when non-empty
+	interpolate string      // Per-series interpolation: "monotone", "step", "step-after", etc. Overrides ChartConfig.interpolate.
 	marker      MarkerShape = .circle
 	marker_size int         = 6
 	line_width  f64         = 2.0

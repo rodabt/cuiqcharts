@@ -356,18 +356,102 @@ fn render_line(c Chart) string {
 	data := series_to_xy_data(c.series)
 	multi := c.series.len > 1
 	legend := if c.config.direct_labels { 'null' } else { vl_legend(c.config.legend) }
+	x_title := if c.config.x_axis.name != '' { c.config.x_axis.name } else { '' }
+	y_title := if c.config.y_axis.name != '' { c.config.y_axis.name } else { '' }
+	y_fmt := vl_fmt_axis(c.config.y_axis)
+	header := '"\$schema":${json_str(vl_schema)},"title":${vl_title(c.config)},"width":${c.config.width},"height":${c.config.height},"data":{"values":${data}}'
+	zoom := vl_zoom_params(c.config)
+
+	// ── Per-series layer path ───────────────────────────────────────────────
+	// Vega-Lite has no "interpolate" encoding channel, so per-series interpolation
+	// requires one layer per series with a filter transform.
+	if multi {
+		mut needs_per_series := false
+		for s in c.series {
+			if s.interpolate != '' { needs_per_series = true; break }
+		}
+		if needs_per_series {
+			palette := color_palette(c.config.colors)
+			mut layers := []string{}
+			// Ghost layer: invisible lines that carry the shared color scale so Vega-Lite renders a legend.
+			if !c.config.direct_labels {
+				ghost_enc := '{"x":{"field":"x","type":"nominal","title":${json_str(x_title)}},"y":{"field":"y","type":"quantitative","title":${json_str(y_title)}${y_fmt}},"color":{"field":"s","type":"nominal","legend":${legend},"scale":{"range":${vl_color_range(c.config.colors)}}}}'
+				layers << '{"mark":{"type":"line","opacity":0,"point":false},"encoding":${ghost_enc}}'
+			}
+			// One visible layer per series — each carries its own mark properties.
+			for i, s in c.series {
+				col := if s.color != '' { s.color } else { palette[i % palette.len] }
+				dash := series_stroke_dash(s)
+				interp_val := if s.interpolate != '' { s.interpolate } else { c.config.interpolate }
+				interp_str := if interp_val != '' { ',"interpolate":"${interp_val}"' } else { '' }
+				filter := '"filter":{"field":"s","equal":${json_str(s.name)}}'
+				s_mark := '{"type":"line","point":true,"tooltip":true,"color":${json_str(col)},"strokeWidth":${f64_to_str(s.line_width)},"strokeDash":${dash}${interp_str}}'
+				s_enc := '{"x":{"field":"x","type":"nominal","title":${json_str(x_title)}},"y":{"field":"y","type":"quantitative","title":${json_str(y_title)}${y_fmt}}}'
+				layers << '{"mark":${s_mark},"transform":[{${filter}}],"encoding":${s_enc}}'
+			}
+			if c.config.labels.show {
+				lsize := label_size(c.config.labels)
+				lcolor := label_color(c.config, false)
+				text_mark := '{"type":"text","dy":-10,"align":"center","baseline":"bottom","fontSize":${lsize}}'
+				text_enc := '{"x":{"field":"x","type":"nominal"},"y":{"field":"y","type":"quantitative"},"text":{"field":"y","type":"quantitative","format":","},"color":{"value":${json_str(lcolor)}}}'
+				layers << '{"mark":${text_mark},"encoding":${text_enc}}'
+			}
+			layers << overlay_layers(c, 'x', 'nominal')
+			if c.config.direct_labels {
+				for i, s in c.series {
+					if s.labels.len == 0 { continue }
+					col := if s.color != '' { s.color } else { palette[i % palette.len] }
+					last_lbl := s.labels[s.labels.len - 1]
+					f1 := '"filter":{"field":"x","equal":${json_str(last_lbl)}}'
+					f2 := '"filter":{"field":"s","equal":${json_str(s.name)}}'
+					tm := '{"type":"text","align":"left","dx":6,"baseline":"middle","fontSize":11}'
+					te := '{"x":{"field":"x","type":"nominal"},"y":{"field":"y","type":"quantitative"},"text":{"value":${json_str(s.name)}},"color":{"value":${json_str(col)}}}'
+					layers << '{"transform":[{${f1}},{${f2}}],"mark":${tm},"encoding":${te}}'
+				}
+			}
+			return '{${header}${zoom},"layer":[${layers.join(',')}],${vl_config(c.config)}}'
+		}
+	}
+
+	// ── Single-layer path (default) ────────────────────────────────────────
 	color_enc := if multi {
 		'"color":{"field":"s","type":"nominal","legend":${legend},"scale":{"range":${vl_color_range(c.config.colors)}}}'
 	} else {
 		col := if c.series[0].color != '' { c.series[0].color } else { primary_color(c.config.colors) }
 		'"color":{"value":${json_str(col)}}'
 	}
-	x_title := if c.config.x_axis.name != '' { c.config.x_axis.name } else { '' }
-	y_title := if c.config.y_axis.name != '' { c.config.y_axis.name } else { '' }
-	y_fmt := vl_fmt_axis(c.config.y_axis)
-	enc := '{"x":{"field":"x","type":"nominal","title":${json_str(x_title)}},"y":{"field":"y","type":"quantitative","title":${json_str(y_title)}${y_fmt}},${color_enc}}'
-	header := '"\$schema":${json_str(vl_schema)},"title":${vl_title(c.config)},"width":${c.config.width},"height":${c.config.height},"data":{"values":${data}}'
-	base := '{"mark":{"type":"line","point":true,"tooltip":true},"encoding":${enc}}'
+	// Per-series strokeWidth / strokeDash encoding channels (multi-series only)
+	mut stroke_encs := ''
+	if multi {
+		mut has_custom := false
+		for s in c.series {
+			if s.line_width != 2.0 || s.stroke_dash.len > 0 || s.dash_style != .solid {
+				has_custom = true
+				break
+			}
+		}
+		if has_custom {
+			mut sw_domain := []string{}
+			mut sw_range  := []string{}
+			mut sd_domain := []string{}
+			mut sd_range  := []string{}
+			for s in c.series {
+				sw_domain << json_str(s.name)
+				sw_range  << f64_to_str(s.line_width)
+				sd_domain << json_str(s.name)
+				sd_range  << series_stroke_dash(s)
+			}
+			stroke_encs = ',"strokeWidth":{"field":"s","type":"nominal","legend":null,"scale":{"domain":[${sw_domain.join(',')}],"range":[${sw_range.join(',')}]}},"strokeDash":{"field":"s","type":"nominal","legend":null,"scale":{"domain":[${sd_domain.join(',')}],"range":[${sd_range.join(',')}]}}'
+		}
+	}
+	enc := '{"x":{"field":"x","type":"nominal","title":${json_str(x_title)}},"y":{"field":"y","type":"quantitative","title":${json_str(y_title)}${y_fmt}},${color_enc}${stroke_encs}}'
+	// For single-series, Series.interpolate overrides config.interpolate.
+	sw := if multi { 2.0 } else { c.series[0].line_width }
+	dash := if multi { '[]' } else { series_stroke_dash(c.series[0]) }
+	interp_val := if !multi && c.series[0].interpolate != '' { c.series[0].interpolate } else { c.config.interpolate }
+	interp := if interp_val != '' { ',"interpolate":"${interp_val}"' } else { '' }
+	mark := '{"type":"line","point":true,"tooltip":true,"strokeWidth":${f64_to_str(sw)},"strokeDash":${dash}${interp}}'
+	base := '{"mark":${mark},"encoding":${enc}}'
 	mut layers := [base]
 	if c.config.labels.show {
 		lsize := label_size(c.config.labels)
@@ -390,9 +474,8 @@ fn render_line(c Chart) string {
 			layers << '{"transform":[{${f1}},{${f2}}],"mark":${tm},"encoding":${te}}'
 		}
 	}
-	zoom := vl_zoom_params(c.config)
 	if layers.len == 1 {
-		return '{${header}${zoom},"mark":{"type":"line","point":true,"tooltip":true},"encoding":${enc},${vl_config(c.config)}}'
+		return '{${header}${zoom},"mark":${mark},"encoding":${enc},${vl_config(c.config)}}'
 	}
 	return '{${header}${zoom},"layer":[${layers.join(',')}],${vl_config(c.config)}}'
 }
@@ -413,7 +496,8 @@ fn render_area(c Chart) string {
 	y_fmt := vl_fmt_axis(c.config.y_axis)
 	enc := '{"x":{"field":"x","type":"nominal","title":${json_str(x_title)}},"y":{"field":"y","type":"quantitative","title":${json_str(y_title)}${y_fmt}},${color_enc}}'
 	header := '"\$schema":${json_str(vl_schema)},"title":${vl_title(c.config)},"width":${c.config.width},"height":${c.config.height},"data":{"values":${data}}'
-	base := '{"mark":{"type":"area","line":true,"point":false,"tooltip":true,"opacity":0.4},"encoding":${enc}}'
+	area_interp := vl_interpolate(c.config)
+	base := '{"mark":{"type":"area","line":true,"point":false,"tooltip":true,"opacity":0.4${area_interp}},"encoding":${enc}}'
 	mut layers := [base]
 	if c.config.labels.show {
 		lsize := label_size(c.config.labels)
@@ -438,7 +522,7 @@ fn render_area(c Chart) string {
 	}
 	zoom := vl_zoom_params(c.config)
 	if layers.len == 1 {
-		return '{${header}${zoom},"mark":{"type":"area","line":true,"point":false,"tooltip":true,"opacity":0.6},"encoding":${enc},${vl_config(c.config)}}'
+		return '{${header}${zoom},"mark":{"type":"area","line":true,"point":false,"tooltip":true,"opacity":0.6${area_interp}},"encoding":${enc},${vl_config(c.config)}}'
 	}
 	return '{${header}${zoom},"layer":[${layers.join(',')}],${vl_config(c.config)}}'
 }
@@ -612,12 +696,13 @@ fn render_line_ci(c Chart) string {
 	y_title := if c.config.y_axis.name != '' { c.config.y_axis.name } else { '' }
 	y_fmt := vl_fmt_axis(c.config.y_axis)
 	palette := color_palette(c.config.colors)
+	ci_interp := vl_interpolate(c.config)
 	mut layers := []string{}
 	for i, s in c.series {
 		col := if s.color != '' { s.color } else { palette[i % palette.len] }
 		filter := '"filter":{"field":"s","equal":${json_str(s.name)}}'
-		band := '{"mark":{"type":"errorband","opacity":0.2},"transform":[{${filter}}],"encoding":{"x":{"field":"x","type":"nominal","title":${json_str(x_title)}},"y":{"field":"y_lower","type":"quantitative","title":${json_str(y_title)}${y_fmt}},"y2":{"field":"y_upper"},"color":{"value":${json_str(col)}}}}'
-		line := '{"mark":{"type":"line","point":true},"transform":[{${filter}}],"encoding":{"x":{"field":"x","type":"nominal"},"y":{"field":"y","type":"quantitative"${y_fmt}},"color":{"value":${json_str(col)}}}}'
+		band := '{"mark":{"type":"errorband","opacity":0.2${ci_interp}},"transform":[{${filter}}],"encoding":{"x":{"field":"x","type":"nominal","title":${json_str(x_title)}},"y":{"field":"y_lower","type":"quantitative","title":${json_str(y_title)}${y_fmt}},"y2":{"field":"y_upper"},"color":{"value":${json_str(col)}}}}'
+		line := '{"mark":{"type":"line","point":true${ci_interp}},"transform":[{${filter}}],"encoding":{"x":{"field":"x","type":"nominal"},"y":{"field":"y","type":"quantitative"${y_fmt}},"color":{"value":${json_str(col)}}}}'
 		layers << band
 		layers << line
 	}
@@ -746,6 +831,23 @@ fn vl_dash(d DashStyle) string {
 		.dashed { '[6,3]' }
 		.dotted { '[2,3]' }
 	}
+}
+
+// vl_interpolate returns the Vega-Lite "interpolate" mark property fragment, or empty string.
+fn vl_interpolate(cfg ChartConfig) string {
+	if cfg.interpolate == '' { return '' }
+	return ',"interpolate":"${cfg.interpolate}"'
+}
+
+// series_stroke_dash returns the Vega-Lite strokeDash JSON array for a series.
+// stroke_dash (raw []int) takes precedence over dash_style when non-empty.
+fn series_stroke_dash(s Series) string {
+	if s.stroke_dash.len > 0 {
+		mut parts := []string{}
+		for v in s.stroke_dash { parts << '${v}' }
+		return '[${parts.join(',')}]'
+	}
+	return vl_dash(s.dash_style)
 }
 
 // ols_trend_nominal computes one OLS trend line per series and returns layer JSON strings.

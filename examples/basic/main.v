@@ -39,10 +39,13 @@ fn main() {
 	grouped_bar.save('grouped_bar.html') or { eprintln('Error: ${err}') }
 	println('Saved grouped_bar.html')
 
-	// ── Line — multi-series with direct end-of-line labels (no legend) ─────────
+	// ── Line — multi-series with per-series stroke and interpolation styling ──
+	// Each series carries its own strokeWidth, stroke_dash, and interpolate.
+	// When any series sets interpolate, render_line switches to per-series layers
+	// (one filtered layer per series) with a ghost layer to keep the legend.
 	mut line_chart := cuiqcharts.line(
 		title:         'Revenue, COGS, and OpEx — FY 2025'
-		subtitle:      'Labels at series endpoints replace the legend'
+		subtitle:      'Smooth revenue · linear COGS · step OpEx — each series uses a different interpolation'
 		colors:        .default_scheme
 		width:         900
 		height:        450
@@ -50,16 +53,32 @@ fn main() {
 		x_axis:        cuiqcharts.AxisConfig{ name: 'Quarter' }
 		y_axis:        cuiqcharts.AxisConfig{ name: 'USD thousands' }
 	)
-	line_chart.add_series(cuiqcharts.named_series('Revenue',
-		['Q1', 'Q2', 'Q3', 'Q4'], [100.0, 120.0, 115.0, 140.0]))
-	line_chart.add_series(cuiqcharts.named_series('COGS',
-		['Q1', 'Q2', 'Q3', 'Q4'], [60.0, 68.0, 65.0, 80.0]))
-	line_chart.add_series(cuiqcharts.named_series('OpEx',
-		['Q1', 'Q2', 'Q3', 'Q4'], [25.0, 28.0, 26.0, 30.0]))
+	line_chart.add_series(cuiqcharts.Series{
+		name:        'Revenue'
+		labels:      ['Q1', 'Q2', 'Q3', 'Q4']
+		data:        [100.0, 120.0, 115.0, 140.0]
+		line_width:  2.5
+		interpolate: 'monotone'
+	})
+	line_chart.add_series(cuiqcharts.Series{
+		name:        'COGS'
+		labels:      ['Q1', 'Q2', 'Q3', 'Q4']
+		data:        [60.0, 68.0, 65.0, 80.0]
+		line_width:  1.5
+		stroke_dash: [6, 3]
+	})
+	line_chart.add_series(cuiqcharts.Series{
+		name:        'OpEx'
+		labels:      ['Q1', 'Q2', 'Q3', 'Q4']
+		data:        [25.0, 28.0, 26.0, 30.0]
+		line_width:  1.5
+		stroke_dash: [2, 3]
+		interpolate: 'step-after'
+	})
 	line_chart.save('line_direct_labels.html') or { eprintln('Error: ${err}') }
 	println('Saved line_direct_labels.html')
 
-	// ── Line — single series with OLS trend line ───────────────────────────────
+	// ── Line — single series with OLS trend line and custom strokeWidth ───────
 	mut trend_chart := cuiqcharts.line(
 		title:      'Monthly Active Users — 2025'
 		subtitle:   'OLS trend line shows underlying growth trajectory'
@@ -70,9 +89,12 @@ fn main() {
 		x_axis:     cuiqcharts.AxisConfig{ name: 'Month' }
 		y_axis:     cuiqcharts.AxisConfig{ name: 'MAU (thousands)' }
 	)
-	trend_chart.add_series(cuiqcharts.named_series('MAU',
-		['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],
-		[42.0, 45.0, 43.0, 51.0, 58.0, 55.0, 62.0, 68.0, 65.0, 72.0, 78.0, 84.0]))
+	trend_chart.add_series(cuiqcharts.Series{
+		name:       'MAU'
+		labels:     ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+		data:       [42.0, 45.0, 43.0, 51.0, 58.0, 55.0, 62.0, 68.0, 65.0, 72.0, 78.0, 84.0]
+		line_width: 1
+	})
 	trend_chart.save('line_trend.html') or { eprintln('Error: ${err}') }
 	println('Saved line_trend.html')
 
